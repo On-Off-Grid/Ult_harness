@@ -1,0 +1,125 @@
+graph LR
+    %% ----------------────────────────────────────────────────────
+    %% Differentiated Color Schemes matching product_development_mind_map.jpg
+    %% ----------------────────────────────────────────────────────
+
+    classDef hub fill:#93C5FD,stroke:#2563EB,stroke-width:3px,color:#1E3A8A,rx:50,ry:30;
+    classDef core fill:#E9D5FF,stroke:#9333EA,stroke-width:2px,color:#581C87,rx:30,ry:30;
+    classDef comp fill:#BBF7D0,stroke:#16A34A,stroke-width:2px,color:#14532D,rx:30,ry:30;
+    classDef swarm fill:#BAE6FD,stroke:#0284C7,stroke-width:2px,color:#0C4A6E,rx:30,ry:30;
+    classDef tool fill:#FEF08A,stroke:#CA8A04,stroke-width:2px,color:#713F12,rx:30,ry:30;
+    classDef orch fill:#FECACA,stroke:#DC2626,stroke-width:2px,color:#7F1D1D,rx:30,ry:30;
+    classDef test fill:#FFEDD5,stroke:#EA580C,stroke-width:2px,color:#7C2D12,rx:30,ry:30;
+    classDef heavy fill:#FEF08A,stroke:#CA8A04,stroke-width:2px,color:#713F12,rx:30,ry:30;
+    classDef story fill:#FFFBEB,stroke:#F59E0B,stroke-width:1px,color:#78350F,rx:20,ry:20;
+    classDef note fill:#67E8F9,stroke:#0891B2,stroke-width:2px,color:#164E63,rx:15,ry:15;
+
+    %% ----------------────────────────────────────────────────────
+    %% CENTRAL HUBS (Light Blue Ovals)
+    %% ----------------────────────────────────────────────────────
+    HUB1("Top-level Initiative #1: Harness v2.1.2 Control Plane"):::hub
+    HUB2("Top-level Initiative #2: Qwen3.8-27B Heavy Gateway"):::hub
+
+    HUB1 --> HUB2
+
+    %% ----------------────────────────────────────────────────────
+    %% SUBGRAPH 1: CORE ARCHITECTURE (Purple Circles - 100% Done)
+    %% ----------------────────────────────────────────────────────
+    subgraph Core_Architecture["Core Architecture & Foundation"]
+        P0("Phase 0: Core Foundation (types.py, config.py, event_bus)"):::core
+        P3("Phase 3: Budget & Sessions (token_tracker, router, noise_filter)"):::core
+    end
+
+    HUB1 --> P0
+    HUB1 --> P3
+
+    %% ----------------────────────────────────────────────────────
+    %% SUBGRAPH 2: COMPLIANCE & MEMORY (Green Circles - 100% Done)
+    %% ----------------────────────────────────────────────────────
+    subgraph Compliance_Memory["Compliance & Memory Storage"]
+        P1("Phase 1: Compliance (scope_gate, egress_proxy :8080)"):::comp
+        P2("Phase 2: Memory Storage (MemPalace DB 7 Tables)"):::comp
+    end
+
+    HUB1 --> P1
+    HUB1 --> P2
+
+    %% ----------------────────────────────────────────────────────
+    %% SUBGRAPH 3: SWARM & TOOLS (Cyan/Yellow Circles)
+    %% ----------------────────────────────────────────────────────
+    subgraph Swarm_Tools["Specialist Swarm & Tool Adaptation"]
+        P4A("Phase 4A: Swarm (16 Specialist Agents)"):::swarm
+        P4B("Phase 4B: Tool Adaptations (adhd, claude-bug-bounty, jsleak)"):::tool
+
+        S46("Step 4.6: adhd/engine.ts"):::story
+        S47("Step 4.7: agent.py proxy"):::story
+        S48("Step 4.8: engine.py proxy"):::story
+        S412("Step 4.12: jsleak main.go"):::story
+
+        P4B --> S46
+        P4B --> S47
+        P4B --> S48
+        P4B --> S412
+    end
+
+    HUB1 --> P4A
+    HUB1 --> P4B
+
+    %% ----------------────────────────────────────────────────────
+    %% SUBGRAPH 4: ORCHESTRATION & UI (Coral Red Circles - 0% Pending)
+    %% ----------------────────────────────────────────────────────
+    subgraph Orchestration_UI["Orchestration, Reporting & War Room"]
+        P5("Phase 5: Orchestration & UI (admiral.py, taxonomy, T3MP3ST)"):::orch
+
+        S52("Step 5.2: reporting/taxonomy.py"):::story
+        S54("Step 5.4: orchestrator/admiral.py"):::story
+        S56("Step 5.6: main.py CLI entry"):::story
+        S58("Step 5.8: T3MP3ST War Room UI"):::story
+
+        P5 --> S52
+        P5 --> S54
+        P5 --> S56
+        P5 --> S58
+    end
+
+    HUB1 --> P5
+    HUB2 --> P5
+
+    %% ----------------────────────────────────────────────────────
+    %% SUBGRAPH 5: VALIDATION & TESTS (Orange Circles - 0% Pending)
+    %% ----------------────────────────────────────────────────────
+    subgraph Validation_Suite["Validation & Dry-Run Test Suite"]
+        P6("Phase 6: Validation Tests (Scope, OSINT, Dry-Run E2E)"):::test
+
+        S62("Step 6.2: test_scope_gate.py"):::story
+        S63("Step 6.3: test_osint_exemption.py"):::story
+        S65("Step 6.5: test_mock_e2e.py"):::story
+
+        P6 --> S62
+        P6 --> S63
+        P6 --> S65
+    end
+
+    HUB2 --> P6
+
+    %% ----------------────────────────────────────────────────────
+    %% SUBGRAPH 6: QWEN3.8-27B INTEGRATION (Amber Circles - 10% Partial)
+    %% ----------------────────────────────────────────────────────
+    subgraph Heavy_Gateway["Qwen3.8-27B FastMTP Integration"]
+        P7("Phase 7: Qwen3.8-27B FastMTP (LOCAL_HEAVY Tier & Cloud GPU)"):::heavy
+
+        S71("Step 7.1: llama-server FastMTP"):::story
+        S73("Step 7.3: model_router 4-Tier"):::story
+        S74("Step 7.4: token_tracker GPU Hrs"):::story
+        S76("Step 7.6: egress_proxy Exemption"):::story
+
+        P7 --> S71
+        P7 --> S73
+        P7 --> S74
+        P7 --> S76
+    end
+
+    HUB2 --> P7
+
+    %% Sticky Note Callout
+    NOTE1("Harness Network Ports: OpAdmiral :8001 | MemPalace :8000 | Proxy :8080 | War Room :3333"):::note

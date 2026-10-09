@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+
+# Node / TypeScript (components are fetched via scripts/fetch_components.sh,
+# see CREDITS.md — they are not vendored in this repo)
+node_modules/
+dist/
+
+# Runtime state / local workspaces
+sessions/*.log
+workspace/*/logs/
+*.pid
+*.sqlite
+*.db
+
+# Environment & secrets
+.env
+.env.*
+*.pem
+*.key
+*_token
+*_token.txt
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
