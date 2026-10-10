@@ -13,6 +13,18 @@ venv/
 node_modules/
 dist/
 
+# Third-party components fetched via scripts/fetch_components.sh (repo root).
+# Never commit these — they are other people's repos, and committing their
+# paths would create broken gitlinks ("ghost submodules").
+Agent-Reach/
+Awesome-Redteam/
+CL4R1T4S/
+T3MP3ST/
+adhd/
+claude-bug-bounty/
+jsleak/
+mempalace/
+
 # Runtime state / local workspaces
 sessions/*.log
 workspace/*/logs/
