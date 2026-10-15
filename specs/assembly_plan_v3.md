@@ -1,7 +1,7 @@
 # ULT_HARNESS — Surgical Restart Plan v3.0
 
 **Date:** 2026-10-15
-**Status:** APPROVED — executing. S0 (salvage), S1 (component restoration), **S2 (control-plane trust audit)** complete 2026-10-15 (commits `394bc29`, `c95b967`, S2 in `198004c`+). S1.4 correction recorded in `patches/local-tweaks.md` §6: Phase 4B tweaks 4.6–4.12 were never applied in the original build, so S3/S4 carry that integration work. S2 verdict: all 9 areas GREEN after 6 in-place bug fixes (F1–F6) — see `docs/trust_audit.md`; 104-test suite in `tests/`.
+**Status:** APPROVED — executing. S0 (salvage), S1 (component restoration), **S2 (control-plane trust audit)**, **S3 (the brain)** complete 2026-10-15 (commits `394bc29`, `c95b967`, S2 in `198004c`+ / `cc48240`, S3 in the following commit). S1.4 correction recorded in `patches/local-tweaks.md` §6: Phase 4B tweaks 4.6–4.12 were never applied in the original build — S3 delivered the **harness side** (admiral endpoints `/api/tokens/record` + `/api/v1/llm/route`); the **component side** (adhd `engine.ts`, cbb `agent.py`/`engine.py`/`brain.py`/`memory/*`, jsleak `main.go`) is carried into S4. S2 verdict: all 9 areas GREEN after 6 in-place bug fixes (F1–F6) — see `docs/trust_audit.md`. Test suite: 149 tests in `tests/` (104 S2 + 45 S3).
 **Workspace (canonical):** `/home/souhail/Desktop/Desktop/PORTFOLIO/Vibe_coded/Ult_harness`
 **Supersedes:** `specs/assembly_plan.md` (v2.1.1, mojibaked), `specs/implementation_guide.md` (v2.1.1 snapshot, mojibaked)
 **Predecessor (still valid):** `bug_bounty_harness_design_v2_1.md`, v2.1.2 specs, `harness_gap_bridging_specification_v2_1_2.md`, `progress_report.md`
@@ -89,6 +89,13 @@ Everything downstream of the control plane that doesn't exist yet:
 | S3.3 | `main.py` — CLI entry: `--target <scope-file> --dry-run` / live mode; wires config → compliance → admiral → reporting → mempalace write-back | implementation guide Phase 5 |
 | S3.4 | Rewrite any S2-RED modules here | trust audit |
 
+**Status: ✅ COMPLETE 2026-10-15.**
+- **S3.1** `orchestrator/admiral.py` — `OpAdmiral` core (pure-Python, fastapi-free) + lazy `create_app()` REST/WS surface (12 routes, verified against `.venv` fastapi 0.141). Gap-spec blueprint constructor mismatches corrected against S2-verified signatures (`TokenTracker(event_bus, default_budget)`, `ScopeGate(target_scope)`, `SessionManager(auth_config, …)`). Harness side of 4.6/4.7 shipped: `record_tokens()` → `/api/tokens/record`, `route_llm_request()` → `/api/v1/llm/route`. Kill switch: 3 scope violations → hunt halted.
+- **S3.2** `reporting/taxonomy.py` (all 16 `VulnCategory` → VRT/CWE/CVSS 3.1) + `reporting/writers.py` (CONFIRMED/CHAINED-only gate via `ReportGateError`; H1/Intigriti/YWH tailored, BC/Immunefi generic; `workspace/<wing>/reports/`).
+- **S3.3** `main.py` — `init` / `run [--dry-run]` / `stop`. Operator `--platform` is authoritative over importer-stamped platform. Live mode: mitmdump spawn + uvicorn + optional session bootstrap. Optional `.env` loader (python-dotenv, non-fatal).
+- **S3.4** N/A — no S2-RED modules remained.
+- **Gate S3: PASS** — `python main.py --help` OK; `init` + `run --dry-run` on a sample Bugcrowd-JSON scope walks config→gate→admiral→report→memory end-to-end (locked by `tests/test_s3_main.py` subprocess tests). 45 new S3 tests, 149 total green.
+
 **Gate S3:** `python main.py --help` works; `--dry-run` on a sample scope file walks the full graph (config→gate→admiral→report→memory) with mocked component calls.
 
 ---
@@ -97,11 +104,12 @@ Everything downstream of the control plane that doesn't exist yet:
 
 | # | Test |
 |---|---|
+| S4.0 | **Component-side wiring (carry-over from S3 per `patches/local-tweaks.md` §6):** 4.6 adhd `engine.ts` token-callback POST `:8001/api/tokens/record` + FP query `:8000/search`; 4.7 cbb `agent.py` LLM via POST `:8001/api/v1/llm/route`; 4.8 cbb `engine.py` `HTTP(S)_PROXY` injection; 4.9 cbb `brain.py` mempalace `cl4r1tas_prompts` query; 4.10 cbb `memory/*` → MemPalace REST; 4.11 cbb `scope_checker` deprecation → ScopeGate; 4.12 jsleak `HTTP_PROXY` + `-json` |
 | S4.1 | Scope import → gate enforcement → recon dispatch (real Agent-Reach, local model) → findings persisted to mempalace → noise filter → state machine → evidence validation (OOB callback via `compliance/oob_engine`) → report draft → write-back to mempalace |
 | S4.2 | Negative test: out-of-scope request MUST be blocked by egress proxy and logged |
 | S4.3 | Budget test: run with Ollama-only → zero paid-tier calls recorded by `token_tracker` |
 
-**Gate S4:** one full dry-run on a legitimate target with local models, all log assertions pass, budget ledger consistent.
+**Gate S4:** one full dry-run on a legitimate target with local models, all log assertions pass, budget ledger consistent. S4.0 component tweaks are recorded in `patches/local-tweaks.md` §7 when applied.
 
 ---
 

@@ -8,10 +8,10 @@
 |---|---|---|
 | GitHub Student Pack | ✅ active (GITHUB_TOKEN in env) | **GitHub Models** free API (GPT-4o, Claude 3.5 Sonnet, gpt-4o-mini) |
 | AMD Developer free pack | ⚠️ **TO VERIFY** (see below) | potential $0 cloud GPU hours for the 27B |
-| Google AI Studio free API | ✅ (key needed in `.env`) | 1M-context lane (Gemini Flash) — RESTRICTED data lane |
-| Mistral free | ✅ (key needed; **opt OUT of data training in console**) | code lane (Codestral) |
-| OpenRouter free + $10/mo | ✅ (key needed; apply $10 top-up) | failover layer, 1,000 RPD free-model quota |
-| Groq free API | ✅ (key needed in `.env`) | primary FREE lane (gpt-oss-120b, qwen/qwen3.8-27b) |
+| Google AI Studio free API | ✅ (key set in `.env`, 2026-10-15) | 1M-context lane (Gemini Flash) — RESTRICTED data lane |
+| Mistral free | ✅ (key set; **opt OUT of data training in console**) | code lane (Codestral) |
+| OpenRouter free + $10/mo | ✅ (key set; **apply $10 top-up**) | failover layer, 1,000 RPD free-model quota |
+| Groq free API | ✅ (key set in `.env`, 2026-10-15) | primary FREE lane (gpt-oss-120b, qwen/qwen3.8-27b) |
 | Local (Ollama) | ✅ verified 2026-10-15 | `hf.co/dr-ry/Foundation-Sec-8B-Instruct-GGUF:Q4_K_M` (primary), `qwen2.5:7b` (fallback) — both smoke-tested OK |
 
 ## ⚠️ AMD Developer free pack — manual verification (S0.7, blocked on login)
@@ -32,20 +32,24 @@ free `qwen/qwen3.8-27b` on Groq for heavy-reasoning tasks (S5.2).
 Create `.env` at the repo root (already gitignored) with:
 
 ```
-GROQ_API_KEY=
-OPENROUTER_API_KEY=
-GEMINI_API_KEY=
-MISTRAL_API_KEY=
-GITHUB_TOKEN=        # present in env; reuse for GitHub Models
-LOCAL_HEAVY_URL=     # e.g. http://100.x.y.z:8080 (Tailscale) when GPU spun up
+GROQ_API_KEY=          # set 2026-10-15 (in .env)
+OPENROUTER_API_KEY=    # set 2026-10-15 (in .env); apply $10 top-up
+GEMINI_API_KEY=        # set 2026-10-15 (in .env)
+MISTRAL_API_KEY=       # set 2026-10-15 (in .env)
+GITHUB_TOKEN=          # present in env; reuse for GitHub Models
+LOCAL_HEAVY_URL=       # e.g. http://100.x.y.z:8080 (Tailscale) when GPU spun up
 LOCAL_HEAVY_API_KEY=
 LOCAL_HEAVY_HOURLY_COST=0.40
 ```
 
 - `GITHUB_TOKEN` already present in the environment (used by GitHub MCP) — it also
   authenticates GitHub Models.
-- Operator must paste in the 4 missing keys before S5 (Groq, OpenRouter, Gemini, Mistral)
-  and apply the $10 OpenRouter top-up.
+- ✅ All 4 free-tier keys are now in `.env` (2026-10-15). **Remaining S5 operator
+  action: apply the $10 OpenRouter top-up.**
+- ⚠️ **2026-10-15 incident:** the 4 keys were briefly pasted into this tracked
+  file's working copy (never committed — history is clean). **Recommended:**
+  rotate all 4 keys in each provider console and paste the new values into
+  `.env`. Treat the current values as compromised.
 
 ## Local model verification (S0.9, PASS 2026-10-15)
 

@@ -83,9 +83,17 @@
 | **4.11** | `claude-bug-bounty/tools/scope_checker.py` | ❌ TODO | Add deprecation notice → `compliance.scope_gate` |
 | **4.12** | `jsleak/main.go` | ❌ TODO | Add `HTTP_PROXY` env var + `-json` flag |
 
-### ❌ Phase 5: Reporting, Orchestration & UI — NOT STARTED
+### 🟢 Phase 5: Reporting, Orchestration & UI — CORE BUILT (S3, 2026-10-15)
 
-Directories `reporting/` and `orchestrator/` do not exist yet.
+> [!NOTE]
+> Plan v3 Phase S3 ("build the missing core / the brain") delivered on 2026-10-15. The control plane (S2, all GREEN) is now wired to the missing top layer:
+
+- **`orchestrator/admiral.py`** — `OpAdmiral`: task dispatch with scope kill switch (3 violations → halt), budget-aware model selection via `budget/model_router`, dual-session IDOR/BAC validation hook, noise-filter → state-machine triage pipeline, CONFIRMED/CHAINED-gated reporting, mempalace write-back (deferred chromadb import; dry-run files nothing). REST/WS surface (`:8001`) via lazy `create_app()` — 12 routes, including the never-shipped 4.6/4.7 contract endpoints `/api/tokens/record` and `/api/v1/llm/route`.
+- **`reporting/`** — `taxonomy.py` (all 16 `VulnCategory` → VRT/CWE/CVSS 3.1) + `writers.py` (platform-tailored Markdown, `ReportGateError` if not CONFIRMED/CHAINED).
+- **`main.py`** — `init` (scope parse → workspace → platform profile/header export) / `run [--dry-run]` (full graph walk or live: mitmdump + uvicorn + session bootstrap) / `stop`. Operator `--platform` wins over importer-stamped platform.
+- **Gate S3: PASS** — `python main.py --help` OK; `init` + `run --dry-run` on a sample scope walks config→gate→admiral→report→memory with mocked component calls (subprocess-locked in `tests/test_s3_main.py`).
+- `tests/` is now **149 tests** (104 S2 + 45 S3) — `python3 -m pytest tests/ -q` → 149 passed.
+- Remaining for full Phase 5: T3MP3ST War Room UI (separate, gitignored component) + the component-side wiring 4.6–4.12 (re-homed as plan v3 **S4.0**).
 
 ### 🟢 Phase 6: Validation & Dry-Run Test Harness — S2 TRUST AUDIT COMPLETE (2026-10-15)
 
