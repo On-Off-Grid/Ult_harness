@@ -1,0 +1,308 @@
+1494c2a Merge pull request #492 from Panniantong/codex/add-agent-skills-hub-link
+e2fb487 docs(readme): add Agent Skills Hub friend link
+e825f67 Merge pull request #469 from Panniantong/codex/update-browseract-link
+cfb4418 docs(readme): update BrowserAct link
+75de67c Merge pull request #467 from Panniantong/codex/remove-weekly-trending-badge
+4ef5393 docs(readme): remove weekly trending badge
+9abbdc0 Merge pull request #466 from Panniantong/codex/fix-trending-badges
+4b4e772 docs(readme): update agent cooperation contact copy
+a4e995b docs(readme): separate trending badges
+e87bcdb [codex] update AI Agent contact CTA (#449)
+c20bbde Merge pull request #367 from nyxst4ck/test/youtube-channel-coverage
+5e0ef67 Merge pull request #448 from Panniantong/codex/no-ux-regression-security-hardening
+e4c31b2 fix(security): harden local credential handling
+d1d2eda Merge pull request #447 from Panniantong/codex/opencli-facebook-instagram
+b060a48 feat(channels): add facebook and instagram opencli support
+a7c56eb Merge pull request #420 from Panniantong/codex/add-ark-sponsor
+00a1543 docs(readme): add ark agent plan sponsor
+22d7f03 Merge pull request #385 from Panniantong/codex/english-readme-browseract-trendshift
+edd1d07 docs(readme): update English README badges and browser boundary
+d018c14 Merge pull request #383 from Panniantong/codex/trendshift-badge
+d24fb62 docs(readme): add Trendshift badge
+6040597 docs(readme): update BrowserAct boundary copy
+36a731d docs(readme): add AtomGit mirror to footer links
+085d72b docs(readme): remove AtomGit mirror promotion
+c2e1a5d test(youtube): add unit tests for the YouTubeChannel readiness check
+71b85f8 docs(readme): clarify browser action boundary
+80fcb33 docs: add AtomGit mirror badge and link (G-Star onboarding)
+f65526c docs(readme): full-pass audit — purge pre-v1.5 worldview from both READMEs
+5e6fc45 docs(review): round-3 nits — last copy inconsistencies from Codex review
+e570d08 fix(review): round-2 findings — dead proxy key, unbounded transcribe, doc pins
+cc90e10 fix(review): four findings from adversarial Codex review round 1
+fc24fb6 feat(experience): one-liner install/update docs catch up + version-watching skill
+380cfd5 feat(identity): capability-layer positioning + skill rewrite, v1.5.0
+2c766af feat(bilibili,twitter): yt-dlp exits bilibili; OpenCLI joins both
+d7551bf feat(reddit): honest tiering — OpenCLI / rdt-cli, no zero-config path
+3e5f9df feat(xiaohongshu): multi-backend — OpenCLI / xiaohongshu-mcp / xhs-cli
+0e8dd3f feat(backends): onboard OpenCLI as cross-channel desktop backend
+762824c feat(routing): ordered backend candidates + real-probing doctor
+447dc4a docs: trim friend-links to Tencent Cloud OpenClaw only (#352)
+373704a fix(security): create credential files atomically with 0o600 (#350)
+97e9e63 chore: bump version to 1.4.2 (#349)
+853e519 feat(doctor): add legend line and --json output (#348)
+7015b08 refactor: remove Douyin, Weibo and WeChat channels (#347)
+b0e010c fix(windows): force UTF-8 in channel subprocesses and MCP server env (#345)
+4ca570a feat(transcribe): Whisper transcription module with Groq→OpenAI fallback (#277)
+9045fee fix(reddit): install rdt-cli from GitHub source pinned to 0.4.2 (#326)
+5b07d95 feat(xiaoyuzhou): Chinese punctuation prompt + optional --polish flag (#291)
+a827452 feat(skill): optimize SKILL.md description for better auto-triggering (#324)
+7814965 fix: correct stale twitter flag, MP3 case match, reddit tier, bird residue (#344)
+bdf692c docs(en): document safe mode and OpenClaw exec requirement (#330)
+40963eb docs(install): document Windows python3 Store alias workaround (#325)
+6bc92a0 fix(docs): Reddit requires authentication, correct misleading claims (#323)
+5dfd29e fix(xiaoyuzhou): replace grep -oP with perl for macOS BSD grep compat (#290)
+dd1af8f fix(config): update stale comment from bird CLI to twitter-cli (#284)
+7e264cb docs(skill_en): replace stale bird commands with twitter-cli (#287)
+c2911cd chore: stop tracking .claude/settings.local.json (personal local config) (#342)
+84b474c chore: bump version to 1.4.1 (#341)
+b6241e8 ci: add wheel-build gate (duplicate-entry check + clean-venv smoke install) (#340)
+607f0d2 fix(build): drop duplicate force-include that breaks source installs (#329)
+1762426 docs: update Reddit auth requirement and fix architecture diagrams across all READMEs
+575cd3b docs: add Korean README translation (docs/README_ko.md) (#251)
+0e21545 Add English skill locale support (#223)
+28e6f07 Create SECURITY.md (#254)
+0aee897 fix(reddit): detect auth status in doctor check (#261)
+e36f737 docs: fix Douyin MCP installation and configuration instructions (#256) (#257)
+a45147c fix(wechat): Windows 系统上 doctor 误判微信公众号渠道不可用 (#263)
+def2ce9 docs: update all remaining files for v1.4.0 upstream migrations
+a1cc229 docs: update README for v1.4.0 upstream migrations
+e178470 fix(twitter): support both twitter-cli and bird CLI, never uninstall user tools
+7acf3c1 docs(skill): add Twitter upstream caveats (search instability, IP risk, cookie issues)
+04fd645 docs(skill): add upstream caveats for Reddit, B站, YouTube
+d877c09 docs(skill): add XHS upstream caveats (xsec_token, rate limits, unstable commands)
+65ff8d6 docs: rewrite update.md for v1.4.0 upstream migrations
+0f9cfe6 fix(web): add read() via Jina Reader + skill install fallback (#238)
+23d4d5c chore: bump version to 1.4.0
+75bc98a feat(install): split into core + optional channels with --channels flag (#237)
+bc2d554 fix(xiaohongshu): switch from Docker MCP to xhs-cli (pipx install) (#236)
+15f161e fix(reddit,bilibili): switch to rdt-cli and add bili-cli support (#235)
+794455c refactor: remove Discord and Toutiao channels (#234)
+6548a50 fix(wechat): switch search from miku_ai to Exa, upgrade to tier 0 (#233)
+21214fd fix(xueqiu): add rookiepy as primary cookie backend, keep browser_cookie3 as fallback (#232)
+c5a304d fix(twitter): migrate from deleted bird CLI to twitter-cli (#231)
+6688306 feat(channels): add Discord channel (Exa search + public Invite API) (#230)
+f4b3758 feat(channels): add Toutiao channel with search and read (#229)
+d7c8ac8 docs: add alternative Douyin/XHS MCP option (social-post-extractor-mcp)
+1e0e6d1 docs: add Japanese README (ja)
+e90fbfe fix(youtube): use platform-aware yt-dlp config path and locale-safe reads (#225)
+3e90d51 Merge pull request #228 from Panniantong/fix/xhs-docker-guide
+b82ab1a docs(xhs): fix misleading Docker login guide
+9a8b245 Merge pull request #227 from Panniantong/fix/reddit-exa-only
+5d046ec fix(reddit): switch to Exa-only for search and read, remove proxy dependency
+b4ed28e Merge pull request #226 from Panniantong/merge/skill-router-system
+f9b7241 feat(skill): refactor skill system with router + references structure (#192)
+526616e Merge pull request #210 from MatrixA/fix/xueqiu-cookie-auth
+e51bd91 Merge pull request #213 from Panniantong/fix/skill-install-error-message
+e575ddb fix(skill): show real error and helpful tip when skill install fails
+d793afa fix(xueqiu): fix 400 errors by using browser cookies and correct headers
+ca2e855 docs: add Tencent Cloud OpenClaw to友情链接/Friends section (#209)
+3be2a64 fix: auto-register skill on doctor + add XHS output formatter (#154, #134) (#199)
+470c128 feat: add Xueqiu (雪球) channel (#198)
+881d9b9 fix(test): update doctor test assertions for Rich markup (#197)
+1556305 feat: Refactor `agent-reach doctor` UI with Rich markup for better visualization (#170)
+0c6c45a Fix twitter cookie parsing regression (#196)
+7e66abe feat: Support OPENCLAW_HOME environment variable! (#194)
+e640650 docs(wechat): use agent-reach interpreter for miku_ai search example (#188)
+afc8d0e docs(weibo): add comprehensive usage examples to SKILL.md (#195)
+90bb4e0 Merge pull request #193 from Panniantong/feat/twitter-bird-migration
+7ae0cd8 feat(twitter): migrate from xreach to bird CLI
+c1af1ca fix(bilibili): add /all/v2 search API check to doctor (#182)
+ded4440 Merge pull request #176 from Panniantong/fix/xhs-cookies-absolute-path
+5fb0e10 fix(xhs): use absolute path fallback and restart container after cookie import
+ef8134b Merge pull request #173 from Panniantong/docs/wechat-personal-qr
+be9f9ab docs: replace WeChat group QR with personal QR, update copy
+8afd19f Merge pull request #169 from Panniantong/fix/reddit-doctor-user-agent
+1f4154a fix(reddit): add User-Agent to doctor health check to avoid false 403
+1442852 Merge pull request #166 from voidborne-d/fix/skill-description-length
+5461ca4 Merge pull request #161 from Panniantong/fix/xiaohongshu-doctor-windows-compat
+ab84307 fix: shorten SKILL.md description to stay under 1024-char limit (fixes #163)
+6c5346c docs: update WeChat group QR code (expires 2026-03-20) (#164)
+77c62c7 fix(xiaohongshu): robust JSON parsing + Windows timeouts for doctor check
+7c64579 Merge pull request #157 from kadaliao/docs/add-v2ex-to-readme
+383004e docs(skill): add 小宇宙播客 (Xiaoyuzhou) section to SKILL.md (#158)
+f52fb67 docs: add V2EX channel to README and CHANGELOG (v1.3.0)
+59b594e docs: add pipx/venv guidance for Homebrew Python installs
+3416c0f fix: avoid xreach false alarm and xiaoyuzhou install crash
+31f00b8 feat(channels): add V2EX support via public API (zero-config, tier=0)
+ba565bd fix: switch wechat-article-for-ai to Panniantong fork (BS4 4.12 fix) (#150)
+7018d77 docs: update WeChat group QR code (#149)
+ce9b365 docs: update SKILL.md metadata (homepage, 14 channels, 7500+ stars) (#143)
+70a0bb8 fix(docs): correct OpenClaw exec permission instructions (#142)
+6737ba6 fix(groq): use Config class instead of hardcoded config.json (#136)
+f5f4dea docs: add OpenClaw for Enterprise to friendly links (#141)
+233cc6f docs: add friendly links section (FluxNode) (#140)
+ae5812c docs: remove personal WeChat QR, keep group QR only (#138)
+6af00ce Update README.md
+3321bf7 docs: add WeChat community group QR code (#137)
+00d80d2 remove: drop Boss直聘 channel (non-functional) (#135)
+55efebd fix(twitter): warn when xreach < 0.3.2 (longform tweet support) (#127)
+16733df fix: bust Star History chart cache (v=20260309, 7.5K+ stars) (#131)
+f3daa5c fix(xiaoyuzhou): correct groq-api-key→groq-key in doctor hint and fix check() reading config after configure (#129)
+6ddcfe2 Update contact information in README.md
+0d91d68 Update README.md
+dc64f15 fix: add missing shutil import in weibo and xiaoyuzhou installers (#125)
+c912051 feat: 新增小宇宙播客转文字渠道 (#124)
+22d7ad7 docs: add Twitter/X to contact section (#122)
+5895f39 docs: add email to contact section (#121)
+9129fc5 Update README.md
+3fe100c docs: add contact section with WeChat QR code (#120)
+c2cbccf fix(tests): align format_report assertions with actual output (#119)
+0a5c066 docs: add OpenClaw exec permission prerequisite to README (#117)
+7942f63 fix: make doctor checks resilient to slow mcporter calls (#103)
+fedbf95 feat: add Weibo as default-install channel via Panniantong fork (#118)
+1d3fd43 docs: fix Weibo note — not IP-restricted, needs visitor cookie (#116)
+c02ffc5 docs: add Weibo install instructions + China IP note (#114)
+db20c5d feat: add Weibo channel via mcp-server-weibo (#107)
+3a3d38a fix: YouTube JS runtime check, Douyin health check, cli bare except, config permission race (#104)
+4b7d551 feat: add 'agent-reach configure xhs-cookies' command (#108) (#113)
+eda80b8 fix: sync xfetch session.json when using --from-browser (closes #109) (#112)
+75a2213 fix: remove isatty guard in _ensure_utf8_console (#95) (#101)
+8a90e52 Merge pull request #102 from Panniantong/fix/remove-emojis
+9d0191d fix: remove emoji from CLI output for Windows GBK compatibility
+f3d11fe feat: add star reminder after install completes (#89)
+df34436 docs: add Star History chart to README (#81)
+cd94706 feat: auto-install WeChat article tools during install (#80)
+35073ae docs: make WeChat row consistent with other channels (#79)
+94b428b refactor: rewrite SKILL.md as pure usage guide (324→160 lines) (#78)
+105b477 docs: add update one-liner to English README + update.md (#77)
+92963f0 ci: add Python 3.13 to test matrix (#76)
+e5e20a1 fix(windows): use shutil.which() for npm subprocess calls (#73)
+b4d189b fix: enforce workspace isolation to prevent agent pollution (#57) (#72)
+27d3d54 docs: add one-line update guide (#71)
+ca29c4f release: v1.3.0 (#70)
+49d05b7 docs: add WeChat channel to README (zh + en) (#69)
+476935b feat: add WeChat search via miku_ai (sogou) (#68)
+4f4ad99 feat: add WeChat Official Account channel (#54) (#67)
+561b248 docs: add CONTRIBUTING.md with development guidelines (#62)
+a91a74d fix: Windows encoding + .cmd subprocess resolution (#64) (#66)
+7434c3c docs: fix xiaohongshu API in SKILL.md — replace non-existent functions with correct ones (#65)
+1a61a2c docs: clarify agent-reach has no read/search commands (#59)
+932837f Merge pull request #52 from Panniantong/fix/twitter-cookie-sync-issue50
+4f52942 improve: add chmod 0o600 for session.json (from PR #51 suggestion)
+3c1a04a fix: sync Twitter cookies to xreach session.json on configure
+6a28b21 Merge pull request #49 from Panniantong/fix/ci-test-github-check
+a881db4 fix: CI test — allow github channel 'warn' when gh CLI not installed
+875f098 Merge pull request #48 from Panniantong/fix/yt-bilibili-cookie-docs
+0d1a332 fix: YouTube requires JS runtime — auto-configure Node.js in install
+e620a1d docs: add cookie/proxy warnings for YouTube and Bilibili in SKILL.md
+15a2961 Merge pull request #46 from Panniantong/migrate-bird-to-xreach
+4bc860c Merge pull request #45 from Panniantong/fix/xiaohongshu-arm64-support
+62aacf3 feat: migrate Twitter backend from bird CLI to xreach CLI
+d4e437b fix: add ARM64/Apple Silicon support for xiaohongshu-mcp Docker setup
+dbcc668 Merge pull request #40 from peter941221/fix/security-hardening-split-v2
+40f833d Merge pull request #41 from peter941221/chore/quality-infra-split-v3
+dc4d7cd Merge pull request #24 from Daiyimo/main
+60f5ddf Merge pull request #35 from Panniantong/fix/mcporter-list-hang
+a726aa7 chore: add quality infra matrix, constraints, and test baseline fixes
+4b2e6f2 fix: split security hardening and setup mcporter config checks
+39f76ee fix: replace 'mcporter list' with 'mcporter config list' to prevent hangs
+a568271 Merge pull request #31 from Panniantong/docs/cookie-ban-warning
+f269667 docs: 添加 Cookie 登录封号风险提醒，强调使用小号
+090b01c Merge pull request #30 from Panniantong/fix/sync-version-string
+58b3a4d fix: sync __version__ with pyproject.toml (1.0.0 → 1.2.0)
+37b4cde bump: v1.2.0
+bf6dc70 Merge pull request #28 from Panniantong/feat/douyin-channel
+50f2181 feat: 新增抖音（Douyin）渠道 - 基于 douyin-mcp-server
+b387a67 Merge pull request #27 from Panniantong/docs/cookie-editor-first
+a96c5cd docs: Cookie-Editor 作为首选登录方式，统一所有 cookie 平台
+9c6c04c feat: add uninstall command; fix utf-8 encoding and minor cleanups
+cf70302 Merge pull request #23 from Panniantong/refactor/simplify-to-installer
+80a08c8 docs: update all remaining references to use upstream tools directly
+606e890 docs: update install.md — remove read/search references, add upstream tools table
+a37e9aa refactor: strip to installer + doctor + docs, remove read/search wrapper layer
+1cbf6a7 fix(xiaohongshu): 修复 xsec_token 丢失导致无法读取笔记详情 (#17)
+68319ec Merge pull request #16 from Panniantong/remove/instagram
+f70711e remove(instagram): 移除 Instagram 渠道
+c3a9813 seo: GitHub SEO + GEO 优化，提升项目可发现性
+d291d27 docs: install.md 和 SKILL.md 补充 Twitter 代理方案说明
+0be4f09 Merge pull request #10 from Panniantong/fix/twitter-fetch-failed
+12bd727 fix: Twitter bird CLI fetch failed — 自动代理注入 + 连通性检测 + Exa fallback
+b6d135c docs: 小红书配置方式统一为「告诉 Agent 帮我配」
+291d073 Merge pull request #8 from Panniantong/refactor/skill-consolidate
+ef0889d Merge pull request #7 from Panniantong/docs/channel-limitations
+545a6c5 docs: 新渠道配置方式统一为「告诉 Agent 帮我配」
+00f3edd refactor: 合并 SKILL.md 为单一来源，更新为 12 个渠道
+2f674f1 security: doctor warns if config.yaml permissions are too open
+c642e18 release: v1.1.0 — 新增 Instagram、LinkedIn、Boss直聘 三个渠道
+31eb6db fix: use encoding='utf-8' with errors='replace' for bird subprocess calls
+fe7ed16 merge: 解决与 main 分支的冲突
+5906d4e fix: LinkedIn MCP 参数适配 — 用 company_name/linkedin_username 替代 url
+823f239 docs: 完善三个新渠道的登录说明
+e8fe33c feat: Instagram 支持 Cookie-Editor 导入 + 超时 fallback 优化
+284479e Merge pull request #4 from Panniantong/docs/server-cookie-login
+aafd683 fix: Instagram 429 限速时 15 秒超时后自动 fallback 到 Jina
+e380410 feat: 新增 Instagram、LinkedIn、Boss直聘 三个渠道
+cc9c90c docs: 补充服务器用户小红书登录方式说明
+c0a0518 fix: 修复 README 中 2 个 404 链接
+008811b docs: 简化安装入口，只保留一种方式 + 展开说明背后做了什么
+a0ecd43 fix: 完善所有渠道安装指引，修复文档错误
+868822e fix: Skill 加 Setup 引导，纯 Skill 安装也能自动触发 pip install
+25d869d feat: Agent Reach 作为 Skill 安装
+93ad9c5 fix: birdx → bird CLI (npm @steipete/bird)
+17970b2 feat: 添加 watch 和 check-update 命令 + OpenClaw 每日监控
+0f4a59f fix: Windows 控制台 emoji 编码崩溃
+a860873 docs: 补充 Cookie-Editor 插件推荐
+8089022 docs: 全网搜索改为需配置免费 Key，移到配置后解锁列
+e99acaa Update README.md
+4223f1c docs: 加 Web 4.0 基建愿景
+7ae45ac docs: Star 段落改为真诚口吻，不过度承诺
+afd23e3 docs: 表格改为「装好即用 / 配置后解锁」双列，清晰表达功能层次
+d42ebea docs: 表格按配置难度排序 + 简化配置说明 + 加 Star 价值说明
+fcd747a Update README.md
+ac63a5d docs: install.md 恢复有用细节，保留简洁指令
+27847cd docs: 重写痛点场景 + 平台表格改为用户视角
+05452e5 simplify: install.md 只说目标，不说怎么修——Agent 自己会
+db3f292 feat: 添加 Agent 自修复提示——让用户的 Agent 自己解决安装问题
+d52520a fix: 修复 _install_mcporter 函数丢失 + browser-cookie3 硬依赖 + 自动装 birdx
+51f7363 fix: install 自动安装 gh CLI + Node.js，加大 mcporter 超时
+47f2925 chore: 添加一键完整测试脚本 test.sh
+064ae75 docs: 30秒 → 几分钟，更符合实际
+c674782 docs: 加上 vibe coding 说明，欢迎提 bug
+758002f docs: 精简贡献指南，去掉技术细节
+f2f2e19 docs: 更新 Twitter API 定价 — 已改为按量付费（2026-02）
+8b00f73 docs: 重写设计理念 — 突出脚手架定位、可插拔架构、新渠道贡献指南
+7d0da09 feat: 新增 YouTube/Bilibili/XHS 搜索 CLI 命令 + 修复 B站搜索
+88eaebe refactor: 统一所有渠道后端，对齐 research 技能
+bb9ce6f refactor: XHS + Exa 全面切换到 mcporter MCP 后端
+4e0c008 feat: 小红书 + Exa 搜索支持 mcporter MCP 后端
+3efc8d1 fix: Reddit 子版块列表页支持 + --version 参数
+30f11bb fix: remove dead code (unreachable return) in twitter.py check()
+2d1b865 fix: handle curly quotes in Twitter Jina fallback detection
+a5b7b93 fix: improve error handling for Twitter Jina fallback and invalid URL inputs
+ac64f60 fix: 开头平台列表补上 YouTube（中英文同步）
+94513cf fix: Python badge 3.8+ → 3.10+ 对齐 pyproject.toml
+ebbb69c polish: 全面清理旧名引用 + 英文 README 对齐中文版质量
+5c62a21 rename: Agent Eyes → Agent Reach
+4b0ae20 README: 对标爆火开源项目标准重写
+06a729e README: 加用户安心清单——免费、安全、持续更新、兼容所有 Agent
+e6f6eff README: 重写开头和设计理念
+3fe0948 README: 去掉 CLI/Python/MCP，全部改成用户视角
+38bf407 精确描述每个渠道的能力层次
+2098dac 全中文输出 + 积极正向的状态提示
+904f8df fix: doctor status must be honest — show real capability per channel
+07c6efb fix: 4 bugs found in full E2E usage testing
+afe3ace fix: 2 real-usage bugs found in end-to-end testing
+c851bd6 simplify: auto-everything in install command
+cf5b495 docs: GitHub full capabilities via gh CLI
+d588403 docs: full channel table upfront with capabilities + difficulty
+a9f5fd9 docs: 4 rounds of Steve Jobs polish on Chinese README
+f8234e3 docs: rewrite README — showcase underlying tools, not generic capabilities
+e96ebde docs: Chinese README as default, English in docs/
+c40ffbd fix: 3 bugs found in Docker clean-room test
+deec966 polish: reorder steps — search first (highest value), cookies second
+89b3eaf polish: cookie header string parsing + Cookie-Editor guide + server user path
+b264070 feat: one-click cookie import from browser
+f98fc99 polish round 2: Cookie-Editor shortcut + single-question flow
+1d1484f polish: Steve Jobs pass — simplify install to near-zero friction
+1b8b202 feat: complete channel menu install flow + XiaoHongShu channel
+6b023b6 polish: rewrite install guide as clear channel menu + decision tree
+62b82c5 feat: deterministic install & configure commands
+8362296 feat: add environment detection (local vs server) + Bilibili proxy support
+33c7b77 feat: add Agent-readable install guide (one URL to rule them all)
+74c3df5 v2.0.0 — Pure glue architecture: zero copied code, pluggable channels
+7e4cd96 feat: add upstream sync script for x-reader updates
+e7cd046 fix: suppress loguru noise in CLI, fix birdx text parser
+d891af5 fix: import paths (fetchers→readers), schema field mismatch, RSS detection
+8eab038 v1.0.0 — Agent Eyes: search + read the entire internet
+3a3a010 Agent Eyes v1.0.0 — search + read the entire internet
+ee2ad83 Initial: forked from runesleo/x-reader (MIT License) - thank you @runes_leo!

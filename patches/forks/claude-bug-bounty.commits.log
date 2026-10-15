@@ -1,0 +1,140 @@
+b2e9eb7 perf: speed up nuclei, httpx, subfinder, katana, dalfox, gau, arjun across all tools (#83)
+2a64de3 fix: use OpenCode tool mappings for agents (#75)
+91304a0 docs: move Star History chart to top of README
+10e0804 feat: add GraphQL audit skill + tool — introspection, batching DoS, IDOR, injection (#78)
+29b1e3f feat(brain): add 6 new LLM providers — Gemini, Kimi, Mistral, Together, Cerebras, Perplexity (#77)
+0a739fd feat(web2-vuln-classes): add Insecure Deserialization as class 24 (PHP/Java/Python/Node) (#76)
+d137155 feat(web2-vuln-classes): add MCP & RAG-specific attacks to LLM/AI class (#70)
+261b278 feat(web2-vuln-classes): add LFI / file inclusion -> RCE class (#65)
+91c3fe8 feat(skills): add framework 1-day quick-wins to security-arsenal (#68)
+67d33c5 feat(waf-bypass): systematic WAF bypass pipeline — encoder, analyzer, soft-block detection (#40)
+2eae56d feat(skills): add mobile-pentest skill (Android/iOS runtime-first workflow) (#64)
+f30834f macOS: fix unclosed if in vuln_scanner.sh XSS section (#57)
+10eb8b8 fix(uninstall): remove installed agents on uninstall (#72)
+22ea70b Merge pull request #73 from nurazhardotcom/feature/kimchi-freebuff-compat
+bc374b5 Fix recon wordlist lookup
+c3e9d66 feat: add friendlier CLI help and aliases
+2755dd4 feat(arsenal): add kimchi and freebuff compatibility
+0d5c801 docs: add Star History chart to top of README
+85671ac Merge pull request #71 from shuvonsec/update/claude-model-opus-4-7
+eee8f86 docs: update README with standalone engine and free provider support
+7407a58 Merge pull request #62 from shuvonsec/update/claude-model-opus-4-7
+cea91f9 feat: add standalone engine — run bughunter without any AI subscription
+a3abd02 feat: add AI-assisted hunt playbook
+64afda8 chore: bump claude-opus-4-6 → claude-opus-4-7 in report-writer agent and brain.py
+59a3c32 feat(vuln-classes): add CSS injection coverage
+c7b8553 docs: record calibration handoff updates
+4e4d5f3 Merge pull request #61 from shuvonsec/landing-page
+62c7bf2 chore: remove TODOS.md and TUTORIAL.md from root (moved to docs/)
+5eb306c chore: add GitHub community health files + organize root structure
+64954c0 feat: false positive reduction — scanner confidence + validation gate hardening
+bc0a313 docs: add project structure section + folder READMEs for every major directory
+f6d308a docs: clean README redesign — simpler, cleaner, top-class
+83acc6d Merge pull request #60 from shuvonsec/landing-page
+81333a0 docs: add Star History chart to README
+6e6855a merge: resolve conflicts from origin/main merge
+ef5f349 chore: commit local changes before merge with main
+01cec83 fix: stop promoting weak scanner signals into findings (4-layer FP reduction)
+8551799 I'm back with some update. (#59)
+f14662c Merge origin/main into landing-page
+4fb736c feat: harden cli and bump v4.3.1
+7248fa2 feat(vuln-classes): add CSS injection coverage
+8dcf40b feat: credential attack pipeline — wordlist-gen / osint / breach-check / spray (5 new slash commands) (#58)
+0346b8a feat: 3 small recon/brain/dork-runner improvements from VAPT engagement (#33)
+70bdf36 feat(vuln-classes): add postMessage testing subsection to XSS (#48)
+5a625c7 feat(vuln-classes): add error disclosure & framework debug endpoints (#47)
+a7d0cb8 feat(opencode): add uninstall scripts, fix MCP format, replace plugin with AGENTS.md (#42)
+e6a78ea Update sensitive-files.txt (#53)
+99cb2c2 Update api-endpoints.txt (#52)
+7da94e1 bugfix: improve Go PATH hangling and version detection in install_tools.sh (#39)
+a3237a7 fix(vuln_scanner): repair orphaned if-block in XSS check (#46)
+7d8f2eb fix(vuln_scanner): remove mkdir referencing $FINDINGS_DIR before assignment (#45)
+12c1164 Landing page (#55)
+319fd18 Merge remote-tracking branch 'origin/main' into landing-page
+3649346 docs: add "ask Claude to install" path + paste-ready usage prompts
+bfc5bab feat: add bughunter.fun landing page (site/index.html)
+fb6281a Feat/banner and command fixes (#43)
+f9e7d42 Feat/commands and auth session (#37)
+642c65d README: drop crypto badges, add v4.3 notes + recon toolkit table
+5f3a052 feat: 7 new commands, auth-session, methodology cheatsheet, recon nuclei phase (#36)
+5413144 feat: domain-list mode, Caido MCP, authorization preamble, README clarity
+e5c7737 fix: 2 false-positive correctness bugs from VAPT engagement (#31)
+2a826ad fix: cap katana crawl at 5 min; wire it into recon_engine.sh (#20)
+e4c1395 fix: brain auto-detect prioritizes cloud providers with API keys (#19)
+65af97c fix: restore tools/__init__.py so test_credential_store / test_token_scanner collect (#21)
+16e4a88 feat: v4.2.3 — Stop hook for memory-gc auto-rotation
+a63a522 fix: v4.2.2 — restore missing ReconAdapter class
+7e8acc4 fix: v4.2.1 — PatternDB.save() O(n²) perf bug
+623edef feat: v4.2.0 — memory rotation + README polish
+c2df293 Merge pull request #23 from TRIKKSS/main
+1346138 fix installation_tools.sh verification
+97d4efb remove: cve_hunter.py, report_generator.py, hunt_journal.py — replaced by Claude Code slash commands
+9524134 fix: rename /resume → /pickup, add session isolation, multi-target, Chrome MCP, source code mode
+0db9640 feat: CVSS 4.0 scoring, recon adapter, TODO fixes (#10)
+e079af8 fix: orphan process leak, macOS compat, dalfox timeout, severity classification (#16)
+2c63070 Add: MFA bypass and SAML/SSO checks to vuln_scanner.sh
+414a66e Improve: Burp Suite-style HTML report generator
+955d893 Add: IP and CIDR target support (hunt.py + recon_engine.sh)
+f066b2c docs: add FAQ.md and TERMS.md — plain language for everyone
+819ad0a docs: rewrite README for clarity — plain language, everyone can understand
+9be3dd7 feat: auto-memory at session end — log_session_summary() wired into hunt + autopilot
+476bbed fix: autoplan review — README v4.1.0, hunt-memory gitignore, Quick Start fix, new TODOs
+6d54deb add: CHANGELOG v4.0.0 + v4.1.0 entries — meme coin module + patch fixes
+41a3d7c add: logo SVG assets (banner + icon variants)
+53c1b9d fix: mark TODO-4 resolved — hunt.py BASE_DIR already correct via tools/ relocation
+8938285 add: meme coin security module — 8 token bug classes, token scanner, Solana audit
+a78f019 Update README.md
+5b28bb8 Update README.md
+dc27eb2 fix: orphan process leak, macOS compat, dalfox timeout, severity classification
+195f0fe feat: integrate sisakulint CI/CD scanner into hunting pipeline (#13)
+3d3bd6c fix: restore manual report workflow in HTML generator
+bf40aa5 fix: expand CIDR targets when nmap is unavailable
+1117b90 fix: gate MFA POST probes behind safe method policy
+eddaf76 fix: gate destructive SAML probe in scanner
+53d2e13 feat: add MFA bypass and SAML/SSO checks to vuln_scanner.sh
+d62cc22 fix: preserve report template coverage in HTML generator
+7df6ecb feat: Burp Suite-style self-contained HTML report generator
+6742076 fix: cap CIDR expansion in hunt target support
+955ffc0 feat: add IP and CIDR target support (hunt.py + recon_engine.sh)
+18c2492 add: safe autopilot guards, credential store, and recon adapter
+7814865 fix: wrap logo in centered <p> tag for proper alignment
+9c25ce4 fix: remove display:block style causing badge misalignment
+ccea639 fix: center logo and increase size to 320px
+f2ef3bd add: logo to README header
+2dbd007 add: project logo
+a33cf55 fix: reposition author credit below subtitle
+2704e1c style: format author credit with website link
+5b3290b add by shuvonsec credit to README
+7b9258a Add bb-methodology skill: hunting mindset + 5-phase non-linear workflow (#12)
+8c98102 feat: CVSS 4.0 scoring, recon adapter, TODO fixes
+8974ebd Add: LangGraph-style ReAct autonomous hunting agent (#6)
+083fb82 Add: multi-provider LLM brain (Ollama, Claude, OpenAI, Grok) (#3)
+3303871 docs: redesign README for v3.0.0 — modern layout, user-friendly navigation
+dd84a26 Merge branch 'feat/bionic-hunter-phase1-2'
+8c59528 feat: v3.0.0 — HackerOne MCP, intel engine, tools reorganization
+83be9f3 feat: add autonomous hunt loop, audit log, rate limiter, circuit breaker (Phase 3)
+de24639 Merge pull request #8 from venkatas/feature/vapt-payload-library
+a19c2a2 Merge pull request #9 from shuvonsec/feat/bionic-hunter-phase1-2
+7263ce3 feat: add hunt memory system, scope checker, Burp MCP integration (Phase 1+2)
+4a8a30b Add: full VAPT payload library to hai_payload_builder.py
+2633aa3 v2.1.0 — 20 vuln classes + payload expansion
+b11424d Merge pull request #2 from kevinaimonster/feat/chinese-localization
+cf84b3a feat: add Chinese localization / 添加中文支持
+c92a048 refactor: remove dead CLAUDE_INTEGRATION.md
+440446c security: pass AgentShield scan — grade B (88/100)
+a154787 v2.0.0 — ECC-style plugin architecture
+fa9347f Merge pull request #1 from shuvonsec/copilot/auto-fix-bugs
+7529f98 Initial plan
+666cb3a Fix broken ASCII art header, add author name
+20ad601 Major upgrade: SKILL.md 2x, new bypass tables, A→B chaining, advanced techniques
+44789db Add web3/ skill folder with full smart contract security chain
+45d9260 Add ecosystem section linking all three repos
+df82600 docs: remove TikTok from contact links
+ebc7132 docs: add contributing section with contact and social links
+1f618ec docs: clean up Quick Start section
+c74eafb feat: add SKILL.md, payload arsenal, and Web3 audit guide
+a48823f Update learn.py
+532bbbd docs: improve README for SEO and LinkedIn sharing
+bed6251 security: scrub target/personal info from tool files
+d98fb3c docs: redesign README with pro layout and full tool reference
+cd381a0 Initial release: Claude Bug Bounty Hunter toolkit
