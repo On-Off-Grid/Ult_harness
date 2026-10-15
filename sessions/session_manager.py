@@ -52,13 +52,18 @@ class SessionManager:
         user_b = await self._login("user_b", self.auth_config.get("user_b"))
         admin = await self._login("admin", self.auth_config.get("admin"))
 
-        self.context = MultiSessionContext(
-            user_a_headers=self._build_auth_headers(user_a),
-            user_b_headers=self._build_auth_headers(user_b),
-            admin_headers=self._build_auth_headers(admin),
-            unauth_headers={},  # intentionally empty — no auth
-            session_metadata=self._session_metadata,
-        )
+        # S2 FIX: mutate the existing context in place when one already exists
+        # (bootstrap is also called by force_refresh). Callers that hold the
+        # original reference — e.g. an orchestrator passing `ctx` to specialist
+        # scans — must observe refreshed tokens; swapping in a new object would
+        # silently invalidate every previously handed-out reference.
+        if self.context is None:
+            self.context = MultiSessionContext(unauth_headers={})
+        self.context.user_a_headers = self._build_auth_headers(user_a)
+        self.context.user_b_headers = self._build_auth_headers(user_b)
+        self.context.admin_headers = self._build_auth_headers(admin)
+        self.context.unauth_headers = {}  # intentionally empty — no auth
+        self.context.session_metadata = self._session_metadata
 
         # Start the background refresh loop (if not already running)
         if self._refresh_task is None or self._refresh_task.done():

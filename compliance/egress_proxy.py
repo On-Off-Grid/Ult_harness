@@ -28,16 +28,22 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 import json
+import logging
 import os
 from datetime import datetime
 from typing import Optional
 
-from mitmproxy import http, ctx  # type: ignore
+from mitmproxy import http  # type: ignore
 
 from core.config import HarnessConfig
 from core.types import TargetScope, ScopeRule, ScopeMatchType, Platform
 from compliance.scope_gate import ScopeGate
 from compliance.scope_importer import ScopeImporter
+
+# mitmproxy >= 11 removed `ctx.log`; use a standard logger so this works both
+# inside a live `mitmdump` process and when the module is imported standalone
+# (e.g. the S2 trust-audit smoke test).
+logger = logging.getLogger("harness.egress_proxy")
 
 # Passive CDNs to treat as non-target traffic.[cite:1]
 _PASSIVE_CDNS = {
@@ -94,7 +100,7 @@ class EgressProxy:
             "egress_proxy.jsonl",
         )
         os.makedirs(os.path.dirname(self.log_path), exist_ok=True)
-        ctx.log.info(
+        logger.info(
             f"EgressProxy initialized (dry_run={self.dry_run}) "
             f"log={self.log_path}"
         )

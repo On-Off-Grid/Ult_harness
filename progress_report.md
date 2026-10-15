@@ -87,9 +87,14 @@
 
 Directories `reporting/` and `orchestrator/` do not exist yet.
 
-### ❌ Phase 6: Validation & Dry-Run Test Harness — NOT STARTED
+### 🟢 Phase 6: Validation & Dry-Run Test Harness — S2 TRUST AUDIT COMPLETE (2026-10-15)
 
-Directory `tests/` does not exist yet.
+> [!NOTE]
+> The control plane was audited under surgical-restart plan v3, Phase S2 ("classify, don't assume"). All 9 areas (S2.1–S2.9) are **GREEN** after 6 in-place bug fixes (F1–F6): egress `ctx.log` import failure, `Optional` NameError, ingest dry-run no longer requires chromadb/mempalace, session `force_refresh` stale-context fix, and a premium-model cost-table gap. Full verdicts + findings: `docs/trust_audit.md`.
+
+- `tests/` now holds a 104-test pytest suite (`tests/test_s2_*.py`) — `python3 -m pytest tests/ -q` → **104 passed**, no network, no real workspace writes.
+- The 20-line egress fixture (`workspace/default-wing/logs/egress_proxy.jsonl`) replays 1:1 through the current decision logic (S2.3).
+- Remaining for full Phase 6 (under plan v3): S4 E2E gate (live mitmdump + specialist dry-runs) — depends on S3 core + S5 routing keys.
 
 ### 🟡 Phase 7: Qwen3.8-27B LOCAL_HEAVY Integration — SPEC COMPLETE, IMPLEMENTATION PENDING
 
@@ -375,7 +380,7 @@ Phase 2  ████████████████████ 100%  Memo
 Phase 3  ████████████████████ 100%  Budget, triage, sessions
 Phase 4  ████████████████░░░░  80%  Agents done, tool tweaks pending
 Phase 5  ░░░░░░░░░░░░░░░░░░░░   0%  Orchestration & UI
-Phase 6  ░░░░░░░░░░░░░░░░░░░░   0%  Tests & validation
+Phase 6  ███████████████░░░░░  85%  S2 trust audit: 104 tests green, 6 bugs fixed (E2E gate = S4)
 Phase 7  ██░░░░░░░░░░░░░░░░░░  10%  Qwen3.8-27B integration (spec done)
 ─────────────────────────────────────
 Overall  ██████████████░░░░░░  61%

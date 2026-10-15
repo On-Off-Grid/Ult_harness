@@ -6,7 +6,7 @@ and compares response states to locate access control failures.
 """
 
 import logging
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 import aiohttp
 
 from core.types import MultiSessionContext

@@ -11,8 +11,9 @@ import argparse
 import os
 from pathlib import Path
 
-from mempalace.backends.chroma import ChromaBackend
-from mempalace.config import MempalaceConfig
+# NOTE: the `mempalace` package (and its `chromadb` dependency) is imported
+# lazily inside the non-dry-run paths below, so `--dry-run` works on a machine
+# without the mempalace checkout / chromadb installed.
 
 
 def find_prompt_files(root: Path):
@@ -25,11 +26,16 @@ def find_prompt_files(root: Path):
 
 
 def ingest(root: Path, palace_path: str, dry_run: bool = False):
-    backend = ChromaBackend()
-    col = backend.get_collection(palace_path, collection_name="mempalace_drawers", create=True)
-
     files = find_prompt_files(root)
     print(f"Found {len(files)} CL4R1T4S prompt files")
+
+    # Defer the vector-DB connection until a non-dry-run write is actually
+    # performed, so `--dry-run` works without chromadb (or a live palace).
+    col = None
+    if not dry_run:
+        from mempalace.backends.chroma import ChromaBackend  # deferred (heavy dep)
+        backend = ChromaBackend()
+        col = backend.get_collection(palace_path, collection_name="mempalace_drawers", create=True)
 
     for path in files:
         content = path.read_text(encoding="utf-8", errors="replace")
@@ -61,7 +67,13 @@ def main():
     args = parser.parse_args()
 
     root = Path(args.root).expanduser().resolve()
-    palace_path = os.path.expanduser(args.palace) if args.palace else MempalaceConfig().palace_path
+    if args.palace:
+        palace_path = os.path.expanduser(args.palace)
+    elif args.dry_run:
+        palace_path = None  # dry-run never touches the palace
+    else:
+        from mempalace.config import MempalaceConfig  # deferred (heavy dep)
+        palace_path = MempalaceConfig().palace_path
 
     ingest(root, palace_path, dry_run=args.dry_run)
 

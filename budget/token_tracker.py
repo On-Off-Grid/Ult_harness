@@ -32,6 +32,9 @@ MODEL_COSTS: Dict[str, Dict[str, float]] = {
     "gpt-4o":              {"input": 2.50,   "output": 10.00},
     "gpt-4o-mini":         {"input": 0.15,   "output": 0.60},
     "claude-sonnet-4":     {"input": 3.00,   "output": 15.00},
+    # Dated alias used by MODEL_ROUTING_TABLE (chain_narrative). S2 fix:
+    # without this entry the router's premium task was silently costed at $0.
+    "claude-sonnet-4-20250514": {"input": 3.00, "output": 15.00},
     "claude-haiku":        {"input": 0.25,   "output": 1.25},
 }
 

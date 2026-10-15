@@ -24,3 +24,7 @@ dependencies = [
 where = ["."]
 include = ["core*", "compliance*", "budget*", "triage*", "reporting*", "sessions*", "agents*", "orchestrator*"]
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+
