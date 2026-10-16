@@ -350,6 +350,9 @@ async def _run_live(args) -> int:
     try:
         # Router health check (raises NoBudgetError if no backend at all).
         await graph["model_router"].startup_health_check()
+        # S5: reconcile each enabled provider's model catalog (fail-open).
+        # Live mode only — the dry-run path stays fully offline.
+        await graph["model_router"].startup_discovery()
 
         # Auth bootstrap (only if the profile carries personas).
         profile_path = Path(args.workspace) / args.program / "platform_profile.json"

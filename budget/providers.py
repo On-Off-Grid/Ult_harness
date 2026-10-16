@@ -92,7 +92,8 @@ def default_http(method: str, url: str, headers: Dict[str, str],
 @dataclass
 class Provider:
     name: str
-    tier: str                    # "LOCAL_LIGHT" | "LOCAL_HEAVY" | "PAID_FREE" | "PAID_PREMIUM"
+    tier: str                    # "LOCAL" | "LOCAL_HEAVY" | "PAID_FREE" | "PAID_PREMIUM"
+                                 # (must match ModelTier.value; "LOCAL" == LOCAL_LIGHT)
     lane: DataLane
     api_style: ApiStyle
     base_url: str
@@ -173,6 +174,7 @@ def _openai_chat_url(provider: Provider) -> str:
 
 async def chat(provider: Provider, model: str, prompt: str,
                system: Optional[str] = None, *,
+               max_tokens: Optional[int] = None,
                http: Optional[HttpFn] = None) -> LLMResult:
     """Route a single prompt to ``provider`` via the right adapter.
 
@@ -180,14 +182,15 @@ async def chat(provider: Provider, model: str, prompt: str,
     """
     http = http or (lambda m, u, h, p, t=60: default_http(m, u, h, p, t))
     if provider.api_style is ApiStyle.OLLAMA:
-        return await _chat_ollama(provider, model, prompt, system, http=http)
+        return await _chat_ollama(provider, model, prompt, system, max_tokens, http=http)
     if provider.api_style is ApiStyle.GEMINI_NATIVE:
-        return await _chat_gemini(provider, model, prompt, system, http=http)
-    return await _chat_openai_compat(provider, model, prompt, system, http=http)
+        return await _chat_gemini(provider, model, prompt, system, max_tokens, http=http)
+    return await _chat_openai_compat(provider, model, prompt, system, max_tokens, http=http)
 
 
 async def _chat_openai_compat(provider: Provider, model: str, prompt: str,
-                              system: Optional[str], *, http: HttpFn) -> LLMResult:
+                              system: Optional[str], max_tokens: Optional[int], *,
+                              http: HttpFn) -> LLMResult:
     headers = {"Content-Type": "application/json"}
     if provider.key:
         headers["Authorization"] = f"Bearer {provider.key}"
@@ -196,6 +199,8 @@ async def _chat_openai_compat(provider: Provider, model: str, prompt: str,
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
     payload = {"model": model, "messages": messages}
+    if max_tokens:
+        payload["max_tokens"] = max_tokens
 
     status, data = await http("POST", _openai_chat_url(provider), headers, payload)
     if status == 429:
@@ -216,7 +221,8 @@ async def _chat_openai_compat(provider: Provider, model: str, prompt: str,
 
 
 async def _chat_gemini(provider: Provider, model: str, prompt: str,
-                       system: Optional[str], *, http: HttpFn) -> LLMResult:
+                       system: Optional[str], max_tokens: Optional[int], *,
+                       http: HttpFn) -> LLMResult:
     # Google AI Studio: .../v1beta/models/{model}:generateContent?key=KEY
     base = provider.base_url.rstrip("/")
     url = f"{base}/models/{model}:generateContent"
@@ -226,6 +232,8 @@ async def _chat_gemini(provider: Provider, model: str, prompt: str,
     payload: Dict[str, Any] = {"contents": contents}
     if system:
         payload["systemInstruction"] = {"parts": [{"text": system}]}
+    if max_tokens:
+        payload["generationConfig"] = {"maxOutputTokens": max_tokens}
 
     status, data = await http("POST", url, {"Content-Type": "application/json"}, payload)
     if status == 429:
@@ -248,11 +256,14 @@ async def _chat_gemini(provider: Provider, model: str, prompt: str,
 
 
 async def _chat_ollama(provider: Provider, model: str, prompt: str,
-                       system: Optional[str], *, http: HttpFn) -> LLMResult:
+                       system: Optional[str], max_tokens: Optional[int], *,
+                       http: HttpFn) -> LLMResult:
     base = provider.base_url.rstrip("/")
     payload: Dict[str, Any] = {"model": model, "prompt": prompt, "stream": False}
     if system:
         payload["system"] = system
+    if max_tokens:
+        payload["options"] = {"num_predict": max_tokens}
     status, data = await http("POST", f"{base}/api/generate",
                               {"Content-Type": "application/json"}, payload)
     if status >= 400:
@@ -319,9 +330,11 @@ def build_registry(config) -> List[Provider]:
     """Build the ordered provider registry from a ``HarnessConfig``.
 
     Ordering = failover preference. LOCAL providers first (free + private),
-    then the FREE pool (Groq primary → OpenRouter → Mistral), then the PREMIUM
-    frontier (GitHub Models free → Gemini RESTRICTED → Cloudflare → OpenRouter
-    paid). Availability is derived from key presence + explicit opt-outs.
+    then the FREE pool (Groq primary → OpenRouter → Mistral → Gemini
+    RESTRICTED → Cloudflare), then the PREMIUM frontier (GitHub Models free
+    frontier; OpenRouter paid overflow is reachable via a PAID_PREMIUM chain
+    stop on the openrouter provider). Availability is derived from key presence
+    + explicit opt-outs.
     """
     regs: List[Provider] = []
 
@@ -331,7 +344,7 @@ def build_registry(config) -> List[Provider]:
     # ── LOCAL_LIGHT (Ollama) ──────────────────────────────────────────────
     ollama_on = bool(getattr(config, "ollama_url", None)) and not dis("ollama")
     regs.append(Provider(
-        name="ollama", tier="LOCAL_LIGHT", lane=DataLane.SAFE, api_style=ApiStyle.OLLAMA,
+        name="ollama", tier="LOCAL", lane=DataLane.SAFE, api_style=ApiStyle.OLLAMA,
         base_url=getattr(config, "ollama_url", "http://127.0.0.1:11434"), key=None,
         models=["hf.co/dr-ry/Foundation-Sec-8B-Instruct-GGUF:Q4_K_M", "qwen2.5:7b"],
         context=32768, rpm=60, rpd=100000, enabled=ollama_on,
@@ -361,7 +374,10 @@ def build_registry(config) -> List[Provider]:
         regs.append(Provider(
             name="openrouter", tier="PAID_FREE", lane=DataLane.SAFE, api_style=ApiStyle.OPENAI_COMPAT,
             base_url=OPENROUTER_BASE, key=openrouter_key,
-            models=["qwen/qwen3.8-27b:free", "nvidia/nemotron-3-ultra:free", "poolside/laguna-s-2.1:free"],
+            # last entry = paid overflow (only reachable via a PAID_PREMIUM chain
+            # stop, after the OpenRouter top-up; the ":free" suffix rule keeps the
+            # free trio at $0)
+            models=["qwen/qwen3.8-27b:free", "nvidia/nemotron-3-ultra:free", "poolside/laguna-s-2.1:free", "anthropic/claude-sonnet-4"],
             context=262144, rpm=20, rpd=1000,
         ))
     mistral_key = getattr(config, "mistral_api_key", None)
@@ -382,10 +398,12 @@ def build_registry(config) -> List[Provider]:
             models=["gpt-4o", "claude-3-5-sonnet", "gpt-4o-mini"],
             context=128000, rpm=15, rpd=150,
         ))
+    # Gemini: free-tier 1M-context frontier (RESTRICTED lane - scrubbed content only).
+    # PAID_FREE tier: it costs $0; the RESTRICTED lane is the data constraint.
     gemini_key = getattr(config, "gemini_api_key", None)
     if gemini_key and not dis("gemini"):
         regs.append(Provider(
-            name="gemini", tier="PAID_PREMIUM", lane=DataLane.RESTRICTED,
+            name="gemini", tier="PAID_FREE", lane=DataLane.RESTRICTED,
             api_style=ApiStyle.GEMINI_NATIVE, base_url=GEMINI_BASE, key=gemini_key,
             models=["gemini-2.5-flash", "gemini-2.5-flash-lite"],
             context=1000000, rpm=15, rpd=1500,

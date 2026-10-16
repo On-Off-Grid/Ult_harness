@@ -1,10 +1,11 @@
 # tests/test_s2_router.py  — S2.5: budget/model_router.py + token_tracker.py
 """Tier-routing table correctness + fallback chain + ledger/cost math.
 
-NOTE: the plan's S2.5 wording (LOCAL_LIGHT -> LOCAL_HEAVY -> PAID_FREE ->
-PAID_PREMIUM) describes the *new* 4-tier structure built in S5. The router
-under audit is the existing 3-tier one (LOCAL / PAID_FREE / PAID_PREMIUM);
-this file verifies it as-is and the S5 rework is tracked separately.
+S5 note: the router under audit is now the S5 4-tier, multi-provider router
+(LOCAL / LOCAL_HEAVY / PAID_FREE / PAID_PREMIUM). The three model-name
+assertions below were updated to the S5 routing table's 2026 catalog; every
+other invariant (tier shape, up-only fallback terminal at PAID_PREMIUM,
+cost-entry coverage, ledger math) is unchanged.
 """
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from core.config import HarnessConfig
 from budget.model_router import (
     ModelRouter, ModelTier, LLMResponse,
     MODEL_ROUTING_TABLE, FALLBACK_CHAIN, TIER_DEFAULTS, NoBudgetError,
+    LOCAL_LIGHT_PRIMARY,
 )
 from budget.token_tracker import TokenTracker, MODEL_COSTS
 from core.event_bus import InMemoryEventBus
@@ -54,23 +56,23 @@ def _router(ollama=True, groq=True, premium=False, monkeypatch=None):
 
 def test_local_task_resolves_local(monkeypatch):
     r = _router(ollama=True, groq=True, monkeypatch=monkeypatch)
-    tier, model = r.resolve_model("payload_craft")  # table: LOCAL, qwen2.5-coder:7b
+    tier, model = r.resolve_model("payload_craft")  # S5 table: LOCAL, security-8B
     assert tier is ModelTier.LOCAL
-    assert model == "qwen2.5-coder:7b"
+    assert model == LOCAL_LIGHT_PRIMARY
 
 
 def test_paid_free_task_resolves_paid_free(monkeypatch):
     r = _router(ollama=True, groq=True, monkeypatch=monkeypatch)
-    tier, model = r.resolve_model("scope_interpret")  # table: PAID_FREE
+    tier, model = r.resolve_model("scope_interpret")  # S5 table: PAID_FREE
     assert tier is ModelTier.PAID_FREE
-    assert model == "llama-3.1-70b-versatile"
+    assert model == "openai/gpt-oss-120b"
 
 
 def test_premium_task_resolves_premium(monkeypatch):
     r = _router(ollama=True, groq=True, premium=True, monkeypatch=monkeypatch)
-    tier, model = r.resolve_model("chain_narrative")  # table: PAID_PREMIUM, claude-sonnet-4
+    tier, model = r.resolve_model("chain_narrative")  # S5 table: PAID_PREMIUM, GH claude
     assert tier is ModelTier.PAID_PREMIUM
-    assert model == "claude-sonnet-4-20250514"
+    assert model == "claude-3-5-sonnet"
 
 
 def test_fallback_local_to_paid_free_when_ollama_down(monkeypatch):
@@ -117,14 +119,17 @@ def test_cost_math_paid_model():
 
 
 def test_every_routed_model_has_a_cost_entry():
-    """Invariant: any model in the routing table must exist in MODEL_COSTS,
-    otherwise premium usage is silently recorded as $0 (S2 finding — the
-    claude-sonnet-4-20250514 alias was missing until it was added)."""
+    """Invariant: any model in the routing table (preferred stop AND every
+    failover chain stop) must exist in MODEL_COSTS, otherwise premium usage is
+    silently recorded as $0 (S2 finding — the claude-sonnet-4-20250514 alias was
+    missing until it was added; S5 extends the check to the provider chain)."""
     for task, entry in MODEL_ROUTING_TABLE.items():
-        assert entry["model"] in MODEL_COSTS, (
-            f"{task} routes to '{entry['model']}' which has no cost entry "
-            f"(usage would be counted as $0)"
-        )
+        models = [entry["model"]] + [stop[1] for stop in entry.get("chain", [])]
+        for model in models:
+            assert model in MODEL_COSTS, (
+                f"{task} routes to '{model}' which has no cost entry "
+                f"(usage would be counted as $0)"
+            )
 
 
 def test_cost_math_local_model_is_free():

@@ -253,7 +253,7 @@ class TestS43OllamaOnlyBudget:
     ):
         """A LOCAL-preferred task routes to a $0 model and the ledger records
         zero cost; per-agent sums reconcile with the total."""
-        from budget.model_router import ModelTier
+        from budget.model_router import ModelTier, LOCAL_LIGHT_PRIMARY
         import asyncio
         _, tracker, router = self._router(clean_env, monkeypatch)
 
@@ -279,9 +279,10 @@ class TestS43OllamaOnlyBudget:
         assert per_agent_sum == summary["total_tokens"] == 1800
         assert summary["history_len"] == 2
         # Only the local model is on record — no paid model ever touched.
+        # (S5: the LOCAL default is the security-tuned 8B, not qwen2.5-coder.)
         recorded_models = {r.model for r in tracker._history}
         assert len(recorded_models) == 1
-        assert next(iter(recorded_models)) == "qwen2.5-coder:7b"
+        assert next(iter(recorded_models)) == LOCAL_LIGHT_PRIMARY
 
     @pytest.mark.skipif(not _ollama_is_up(), reason="Ollama not reachable")
     def test_live_ollama_roundtrip_records_local_zero_cost(
