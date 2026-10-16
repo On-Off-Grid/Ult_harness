@@ -35,6 +35,8 @@ workspace/*/logs/
 # Environment & secrets
 .env
 .env.*
+# the key-NAME template (values blank) is safe to commit
+!.env.example
 *.pem
 *.key
 *_token
