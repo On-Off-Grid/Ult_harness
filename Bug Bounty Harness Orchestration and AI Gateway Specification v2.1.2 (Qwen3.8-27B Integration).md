@@ -1,5 +1,18 @@
 # Bug Bounty Harness Orchestration and AI Gateway Specification v2.1.2 (Qwen3.8-27B Integration)
 
+> [!WARNING]
+> **Routing section superseded (2026-10-16, Phase S5).** The model-routing
+> adjustments below are a **v2.1.2 draft** and are superseded by
+> `specs/assembly_plan_v3.md` **§S5.1–S5.7**, which defines the final routing
+> structure (4 tiers incl. a config-driven `LOCAL_HEAVY`, the multi-provider
+> FREE pool, SAFE/RESTRICTED data lanes with a pre-call scrub hook, per-provider
+> rate limiting + 429 rotation, and runtime `/models` discovery). Phase S5 — the
+> router reimplementation and the `model_routing_guide.md` rewrite — is **held
+> pending the operator's $10 OpenRouter top-up**. The Qwen3.8-27B profile
+> itself (S5.5, on-demand cloud GPU) remains valid reference; only the routing
+> table/tier wiring in this file is outdated. Operational source of truth:
+> `OPERATIONS.md`.
+
 ## Overview
 
 This updated specification (v2.1.2) incorporates Qwen3.8-27B-Uncensored-HauhauCS-Aggressive-MTP as a new LOCAL AI gateway option for the bug bounty harness. It refines the orchestration and model-routing blueprint to account for on-demand cloud GPU or high-VRAM workstation deployments capable of serving this 27B model via llama-server with HauhauCS FastMTP acceleration.[^1]
@@ -57,6 +70,11 @@ Key harness roles:
 Qwen3.8-27B remains text-focused in this integration; the mmproj vision projector is optional and can be added later for screenshot/DOM image analysis, but the current harness design focuses on text-only exploit reasoning.[^1]
 
 ### Routing Adjustments
+
+> [!NOTE]
+> **Superseded — see the banner at the top of this file and `specs/assembly_plan_v3.md` §S5.4.**
+> The illustrative table below is the v2.1.2 draft; the final per-task routing
+> table and tier wiring are specified in S5.4.5. Kept for reference only.
 
 The model-routing table is updated to add a new LOCAL tier model identifier, e.g., `qwen3.8-27b-aggressive-q4-local`, pointing at the llama-server endpoint hosting Q4_K_P + FastMTP. Tasks that previously routed to Groq Llama 3.1 70B for deep offensive reasoning now have the option to route to this LOCAL model when the 27B gateway is available.[^3][^2]
 

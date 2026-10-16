@@ -129,7 +129,22 @@ Full per-tweak record + re-apply recipe after a fresh `fetch_components.sh` + th
 
 **Gate S4: PASS.** Full suite: `python3 -m pytest tests/ -q` → **154 passed** (149 baseline + 5 S4). Plan rows S4.0–S4.3 ✅; status header updated.
 
-**Next — S5 (model-router redesign) is blocked on operator actions:** $10 OpenRouter top-up + all 4 rotated free-tier keys into `.env`; then re-verify live `/models` per provider (free tiers drift) before trusting any catalog table. S5 rework targets: `budget/model_router.py` + `core/config.py` + `.env` load, with proper `task_type`s (e.g. `triage_decision`, now emitted by cbb 4.7).
+**Next — S5 (model-router redesign) is held pending one operator action:** the **$10 OpenRouter top-up**. (Key rotation is **closed** — the 4 free-tier keys are in gitignored `.env` and the working-copy doc is confirmed redacted; the operator verified this 2026-10-16.) Then re-verify live `/models` per provider (free tiers drift — Groq rotated 2026-09) before trusting any catalog table. S5 rework targets: `budget/model_router.py` + `core/config.py` + `.env` load, with proper `task_type`s (e.g. `triage_decision`, now emitted by cbb 4.7). The S5 build itself (provider registry, adapters, rate limiters, scrub hook, tracker buckets) is spec-complete in `specs/assembly_plan_v3.md` S5.4–S5.6 and would be mock-testable immediately — it is held only so the live 200-per-provider gate item verifies in one pass.
+
+### 🟢 Phase 6c: Documentation & handoff — S6 COMPLETE (2026-10-16)
+
+The S6 handoff items that do **not** depend on the S5 router are delivered:
+
+| # | Item | Status |
+|---|---|---|
+| — | **`OPERATIONS.md`** — single canonical entry point (what exists / what's verified per trust audit / how to run / known gaps). The S4.1 dry-run command it documents was verified end-to-end from a clean temp dir. | ✅ |
+| — | **`pyproject.toml` → 3.0.0** (S4 gate passed). | ✅ |
+| — | **`CREDITS.md`** pin commits for all 8 components (notes that `adhd` + `claude-bug-bounty` are pulled from the On-Off-Grid forks, not stock upstream). | ✅ |
+| — | **STORM-HUNT archived** → `docs/reference/storm-hunt/` (7 files + a read-only `README.md`; separate project, no code merge). | ✅ |
+| — | **Umbrella sync (decision 6).** *Correction:* `Ult_harness` is **not** a git submodule of `PORTFOLIO` — `Vibe_coded/*` is gitignored by the umbrella, so there is no submodule pointer. The only umbrella-tracked file is `Vibe_coded/README.md`; its Ult_harness row is updated to v3.0.0 + current phase status. Nothing sensitive crosses into the umbrella. | ✅ |
+| — | **`model_routing_guide.md` + v2.1.2 Qwen-spec routing section** — carry **supersession banners** now (pointing to S5.1–S5.7 + `OPERATIONS.md`). The **full guide rewrite is the S5 deliverable** (needs the final router) and is deferred. | ⏳ (banner ✅, rewrite → S5) |
+
+**Gate S6: PASS** — a new agent session given only `OPERATIONS.md` can run the S4.1 command (verified: `init` + `run --dry-run` from a fresh temp dir walked the full graph, report on disk with `**Platform:** hackerone` + CWE-89, zero-cost budget). The sole open S6 sub-task (the routing-guide rewrite) is owned by S5.
 
 ### 🟡 Phase 7: Qwen3.8-27B LOCAL_HEAVY Integration — SPEC COMPLETE, IMPLEMENTATION PENDING
 

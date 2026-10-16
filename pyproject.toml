@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ult_harness"
-version = "2.1.2"
+version = "3.0.0"
 description = "Python control-plane for the Autonomous Bug Bounty Harness"
 authors = [{ name = "Security Architect" }]
 requires-python = ">=3.10"

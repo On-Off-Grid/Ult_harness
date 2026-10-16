@@ -1,7 +1,7 @@
 # ULT_HARNESS — Surgical Restart Plan v3.0
 
 **Date:** 2026-10-15
-**Status:** APPROVED — executing. S0 (salvage), S1 (component restoration), S2 (control-plane trust audit), S3 (the brain), **S4 (end-to-end integration)** complete 2026-10-15/16 (commits `394bc29`, `c95b967`, S2 in `198004c`+ / `cc48240`, S3 in the following commit, S4 in the subsequent commit). S4 delivered: component-side wiring 4.6–4.12 (all env-gated + fail-open, recorded in `patches/local-tweaks.md` §7) + the S4.1–S4.3 E2E gates (`tests/test_s4_e2e.py`, 5 tests incl. a live-Ollama round-trip). Next: S5 (model-router redesign) — blocked on the operator's $10 OpenRouter top-up + key rotation. S2 verdict: all 9 areas GREEN after 6 in-place bug fixes (F1–F6) — see `docs/trust_audit.md`. Test suite: **154 tests** in `tests/` (104 S2 + 45 S3 + 5 S4).
+**Status:** APPROVED — executing. S0 (salvage), S1 (component restoration), S2 (control-plane trust audit), S3 (the brain), **S4 (end-to-end integration)** complete 2026-10-15/16 (commits `394bc29`, `c95b967`, S2 in `198004c`+ / `cc48240`, S3 in the following commit, S4 in the subsequent commit). S4 delivered: component-side wiring 4.6–4.12 (all env-gated + fail-open, recorded in `patches/local-tweaks.md` §7) + the S4.1–S4.3 E2E gates (`tests/test_s4_e2e.py`, 5 tests incl. a live-Ollama round-trip). **S6 (documentation & handoff)** complete 2026-10-16: `OPERATIONS.md` (canonical entry point — a fresh session runs the S4.1 dry-run from it alone), `pyproject.toml` → 3.0.0, `CREDITS.md` pin commits, STORM-HUNT archived to `docs/reference/storm-hunt/`, umbrella `Vibe_coded/README.md` row synced; `model_routing_guide.md` + the v2.1.2 Qwen-spec routing section carry supersession banners (the full guide rewrite is the S5 deliverable). **S5 (model-router redesign)** is the remaining phase — **held pending the operator's $10 OpenRouter top-up** (key rotation is *closed*: the 4 free-tier keys are in gitignored `.env` and the working-copy doc is confirmed redacted). S2 verdict: all 9 areas GREEN after 6 in-place bug fixes (F1–F6) — see `docs/trust_audit.md`. Test suite: **154 tests** in `tests/` (104 S2 + 45 S3 + 5 S4).
 **Workspace (canonical):** `/home/souhail/Desktop/Desktop/PORTFOLIO/Vibe_coded/Ult_harness`
 **Supersedes:** `specs/assembly_plan.md` (v2.1.1, mojibaked), `specs/implementation_guide.md` (v2.1.1 snapshot, mojibaked)
 **Predecessor (still valid):** `bug_bounty_harness_design_v2_1.md`, v2.1.2 specs, `harness_gap_bridging_specification_v2_1_2.md`, `progress_report.md`
@@ -199,14 +199,15 @@ Subscription comparison (why no $20/mo Claude/ChatGPT/Kimi): consumer subscripti
 
 ## Phase S6 — Documentation & handoff
 
-- Single canonical `OPERATIONS.md`: what exists, what's verified (per trust audit), how to run, known gaps.
-- **Rewrite `model_routing_guide.md`** from S5.2–S5.7 (current version is stale: single-Groq, retired model names, old cost model). Retire/annotate the v2.1.2 Qwen spec's routing section as superseded.
-- Bump `pyproject.toml` → 3.0.0 once S4 gate passes.
-- Update `CREDITS.md` with pin commits for all 8 components.
-- **Umbrella sync (decision 6):** commit all doc/code changes in `Ult_harness` → commit the updated submodule pointer in the `PORTFOLIO` parent repo → verify `Vibe_coded/README.md` lists Ult_harness with current phase status. Nothing sensitive (keys, components, findings) crosses into the umbrella.
-- Archive STORM-HUNT: copy `~/.gemini/antigravity-cli/brain/756a3d23-*/storm_hunt_*.md` into `docs/reference/storm-hunt/` (read-only reference for orchestrator design; **separate project — do not merge code**).
+- ✅ Single canonical `OPERATIONS.md`: what exists, what's verified (per trust audit), how to run, known gaps. (Delivered 2026-10-16; the S4.1 dry-run command it documents was verified end-to-end from a clean temp dir.)
+- ⏳ **Rewrite `model_routing_guide.md`** from S5.2–S5.7 — **deferred to S5** (the rewrite needs the final router). The current version is stale (single-Groq, retired model names, old cost model) and now carries a **supersession banner** pointing to S5.1–S5.7 + `OPERATIONS.md`.
+- ✅ Retire/annotate the v2.1.2 Qwen spec's routing section as superseded. (Banner added at the top of the Qwen spec + a note on the `### Routing Adjustments` heading, both pointing to S5.)
+- ✅ Bump `pyproject.toml` → 3.0.0 (S4 gate passed).
+- ✅ Update `CREDITS.md` with pin commits for all 8 components (incl. the note that `adhd` + `claude-bug-bounty` are pulled from the On-Off-Grid forks).
+- ✅ **Umbrella sync (decision 6):** commit all doc/code changes in `Ult_harness` → sync the umbrella. **Correction to the original wording:** `Ult_harness` is *not* a git submodule of `PORTFOLIO` — `Vibe_coded/*` is gitignored by the umbrella (`.gitignore:20`), so there is no submodule pointer to commit. The only umbrella-tracked file is `Vibe_coded/README.md`; its Ult_harness row is updated to v3.0.0 + current phase status. Nothing sensitive (keys, components, findings) crosses into the umbrella.
+- ✅ Archive STORM-HUNT: copy `~/.gemini/antigravity-cli/brain/756a3d23-*/storm_hunt_*.md` into `docs/reference/storm-hunt/` (7 files) + a `README.md` marking it read-only; **separate project — do not merge code**.
 
-**Gate S6:** a new agent session, given only `OPERATIONS.md`, can run the S4.1 command successfully.
+**Gate S6:** a new agent session, given only `OPERATIONS.md`, can run the S4.1 command successfully. → **PASS** (verified 2026-10-16: `init` + `run --dry-run` from a fresh temp dir walked the full graph, report on disk with `**Platform:** hackerone` + CWE-89, zero-cost budget). The guide-rewrite item above is the only open S6 sub-task and is owned by S5.
 
 ---
 

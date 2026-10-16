@@ -1,5 +1,19 @@
 # Bug Bounty Harness — LLM Model Routing & Task Allocation Guide
 
+> [!WARNING]
+> **STALE — superseded by Phase S5 (2026-10-16).** This guide describes the
+> pre-S5 **3-tier, single-Groq** routing model (`LOCAL` / `PAID_FREE` /
+> `PAID_PREMIUM`) with retired model names and the old cost model. It no longer
+> matches the approved design. The replacement routing structure is specified in
+> `specs/assembly_plan_v3.md` **§S5.1–S5.7** (4 tiers incl. `LOCAL_HEAVY`, the
+> multi-provider FREE pool — Groq primary, OpenRouter failover, GitHub Models,
+> Mistral, Gemini — SAFE/RESTRICTED data lanes with a pre-call scrub hook,
+> per-provider rate limiters + 429 rotation, runtime `/models` discovery, and
+> the new S5.7 cost model). Phase S5 (the router reimplementation + this
+> guide's rewrite) is **held pending the operator's $10 OpenRouter top-up**;
+> see `OPERATIONS.md` §5. Until S5 lands, treat this file as a historical
+> reference only — **the operational source of truth is `OPERATIONS.md`.**
+
 **Companion to:** [`bug_bounty_harness_design_v2_1.md`](file:///home/souhail/Desktop/Desktop/Ult_harness/bug_bounty_harness_design_v2_1.md)  
 **Hardware Baseline:** AMD Ryzen 5 7535HS | 16 GB DDR5 | RTX 4050 6 GB VRAM | Kali Linux  
 **Design Principle:** Maximize local inference. Use free APIs for heavy reasoning. Reserve paid APIs for confirmed findings only.
