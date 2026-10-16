@@ -92,8 +92,9 @@
 - **`reporting/`** — `taxonomy.py` (all 16 `VulnCategory` → VRT/CWE/CVSS 3.1) + `writers.py` (platform-tailored Markdown, `ReportGateError` if not CONFIRMED/CHAINED).
 - **`main.py`** — `init` (scope parse → workspace → platform profile/header export) / `run [--dry-run]` (full graph walk or live: mitmdump + uvicorn + session bootstrap) / `stop`. Operator `--platform` wins over importer-stamped platform.
 - **Gate S3: PASS** — `python main.py --help` OK; `init` + `run --dry-run` on a sample scope walks config→gate→admiral→report→memory with mocked component calls (subprocess-locked in `tests/test_s3_main.py`).
-- `tests/` is now **149 tests** (104 S2 + 45 S3) — `python3 -m pytest tests/ -q` → 149 passed.
-- Remaining for full Phase 5: T3MP3ST War Room UI (separate, gitignored component) + the component-side wiring 4.6–4.12 (re-homed as plan v3 **S4.0**).
+- `tests/` is now **154 tests** (104 S2 + 45 S3 + 5 S4) — `python3 -m pytest tests/ -q` → 154 passed.
+- The never-shipped 4.6/4.7 **component side** (adhd `engine.ts`, cbb `agent.py`/`engine.py`/`brain.py`/`memory/*`, jsleak `main.go`) is now wired under **S4.0** (see below) — env-gated + fail-open, recorded in `patches/local-tweaks.md` §7.
+- Remaining for full Phase 5: T3MP3ST War Room UI (separate, gitignored component — UI gauge work is future work, not a control-plane blocker).
 
 ### 🟢 Phase 6: Validation & Dry-Run Test Harness — S2 TRUST AUDIT COMPLETE (2026-10-15)
 
@@ -102,7 +103,33 @@
 
 - `tests/` now holds a 104-test pytest suite (`tests/test_s2_*.py`) — `python3 -m pytest tests/ -q` → **104 passed**, no network, no real workspace writes.
 - The 20-line egress fixture (`workspace/default-wing/logs/egress_proxy.jsonl`) replays 1:1 through the current decision logic (S2.3).
-- Remaining for full Phase 6 (under plan v3): S4 E2E gate (live mitmdump + specialist dry-runs) — depends on S3 core + S5 routing keys.
+- Remaining for full Phase 6 (under plan v3): the S4 E2E gate — now **delivered** (see "Phase 6b: End-to-end integration loop (S4)" below). The live-mitmdump + real-specialist variant is operator-side (needs a live target); the control-plane loop is gated in `tests/test_s4_e2e.py`.
+
+### 🟢 Phase 6b: End-to-end integration loop — S4 COMPLETE (2026-10-16)
+
+**S4.0 — Component-side harness wiring (4.6–4.12), all applied + individually verified.**
+Every tweak is **env-gated and fail-open** (S4.0 constraint): with the harness env vars unset, the components behave byte-for-byte as standalone; a dead harness can never break a hunt.
+
+| # | Component | Change | Verified |
+|---|---|---|---|
+| 4.6 | `adhd` `src/llm.ts` + `src/engine.ts` | char-based token estimate counters + `_reset/_takeTokenEstimate`; `run()` → `_harnessPostHook()`: advisory FP query (`POST {MEMPALACE}/search` → `warn` event only, result never mutated) + token callback (`POST {API}/api/tokens/record`); `AbortSignal.timeout(5000)`, counters reset in `finally` | `tsc --noEmit` + `tsc -p tsconfig.json --noEmit` clean; counters 2000/80; both POSTs landed vs fake servers; dead service swallowed |
+| 4.7 | `claude-bug-bounty` `harness_client.py` (NEW) + `agent.py` | shared stdlib bridge (urllib): `route_llm()`, `record_tokens()`, `mempalace_search()`, `mempalace_record()`, `_est_tokens()`; env read live inside functions, every call fail-open. `race_analysis()` tries `route_llm("triage_decision")` first; native tool-calling loop stays local, token-mirrors via `/api/tokens/record` | routed path returns harness answer; standalone returns local race winner |
+| 4.8 | `cbb` `engine.py` | module init: if `HARNESS_API_URL` set → `setdefault` HTTP(S)_PROXY to `HARNESS_EGRESS_PROXY` + `NO_PROXY=localhost,127.0.0.1`; standalone no-op | verified both ways |
+| 4.9 | `cbb` `brain.py` | `_mempalace_cl4r1tas()` prepended to system prompt in `LLMClient.chat()` (single choke point) | live fake palace → block prepended; dead palace → `""` |
+| 4.10 | `cbb` `memory/{audit_log,pattern_db}.py` | after local JSONL write → `mempalace_record("audit"\|"pattern", entry)`, fire-and-forget (local JSONL stays authoritative) | `rotation.py` untouched (documented §7) |
+| 4.11 | `cbb` `tools/scope_checker.py` | one-shot stderr deprecation notice, fires only when `HARNESS_API_URL` set; checker logic untouched | silent standalone, exactly one warning under harness |
+| 4.12 | `jsleak` `main.go` | `Proxy: http.ProxyFromEnvironment` + `-json` flag via `emitFinding()` (`{"kind","name","value","source"}`) | `go build` + `-help` + JSON/proxy smoke pass; non-json output byte-identical |
+
+Full per-tweak record + re-apply recipe after a fresh `fetch_components.sh` + the mempalace `:8000` shim gap: **`patches/local-tweaks.md` §7**.
+
+**S4.1–S4.3 gates — `tests/test_s4_e2e.py` (NEW, 5 tests, all passing):**
+- **S4.1 full dry-run**: subprocess `init` + `run --dry-run` → all stage markers, report on disk (`**Platform:** hackerone` + CWE-89), zero-cost budget block (`budget.agents` may be 0, `total_cost_usd` must be 0 — mocked specialist bypasses `router.route()`).
+- **S4.2 egress blocks & logs**: out-of-scope → 403 + JSONL `DROP` entry with `data.reason`; in-scope → 200 + `ALLOW`.
+- **S4.3 Ollama-only budget invariant**: no task ever resolves to a PAID tier (`FALLBACK_CHAIN` is up-only: LOCAL→[PAID_FREE, PAID_PREMIUM]; PAID-preferred tasks raise `NoBudgetError` fail-fast); zero-cost reconciled ledger; **live Ollama round-trip** via `router._call_ollama` (skipped if Ollama down).
+
+**Gate S4: PASS.** Full suite: `python3 -m pytest tests/ -q` → **154 passed** (149 baseline + 5 S4). Plan rows S4.0–S4.3 ✅; status header updated.
+
+**Next — S5 (model-router redesign) is blocked on operator actions:** $10 OpenRouter top-up + all 4 rotated free-tier keys into `.env`; then re-verify live `/models` per provider (free tiers drift) before trusting any catalog table. S5 rework targets: `budget/model_router.py` + `core/config.py` + `.env` load, with proper `task_type`s (e.g. `triage_decision`, now emitted by cbb 4.7).
 
 ### 🟡 Phase 7: Qwen3.8-27B LOCAL_HEAVY Integration — SPEC COMPLETE, IMPLEMENTATION PENDING
 

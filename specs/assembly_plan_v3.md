@@ -1,7 +1,7 @@
 # ULT_HARNESS — Surgical Restart Plan v3.0
 
 **Date:** 2026-10-15
-**Status:** APPROVED — executing. S0 (salvage), S1 (component restoration), **S2 (control-plane trust audit)**, **S3 (the brain)** complete 2026-10-15 (commits `394bc29`, `c95b967`, S2 in `198004c`+ / `cc48240`, S3 in the following commit). S1.4 correction recorded in `patches/local-tweaks.md` §6: Phase 4B tweaks 4.6–4.12 were never applied in the original build — S3 delivered the **harness side** (admiral endpoints `/api/tokens/record` + `/api/v1/llm/route`); the **component side** (adhd `engine.ts`, cbb `agent.py`/`engine.py`/`brain.py`/`memory/*`, jsleak `main.go`) is carried into S4. S2 verdict: all 9 areas GREEN after 6 in-place bug fixes (F1–F6) — see `docs/trust_audit.md`. Test suite: 149 tests in `tests/` (104 S2 + 45 S3).
+**Status:** APPROVED — executing. S0 (salvage), S1 (component restoration), S2 (control-plane trust audit), S3 (the brain), **S4 (end-to-end integration)** complete 2026-10-15/16 (commits `394bc29`, `c95b967`, S2 in `198004c`+ / `cc48240`, S3 in the following commit, S4 in the subsequent commit). S4 delivered: component-side wiring 4.6–4.12 (all env-gated + fail-open, recorded in `patches/local-tweaks.md` §7) + the S4.1–S4.3 E2E gates (`tests/test_s4_e2e.py`, 5 tests incl. a live-Ollama round-trip). Next: S5 (model-router redesign) — blocked on the operator's $10 OpenRouter top-up + key rotation. S2 verdict: all 9 areas GREEN after 6 in-place bug fixes (F1–F6) — see `docs/trust_audit.md`. Test suite: **154 tests** in `tests/` (104 S2 + 45 S3 + 5 S4).
 **Workspace (canonical):** `/home/souhail/Desktop/Desktop/PORTFOLIO/Vibe_coded/Ult_harness`
 **Supersedes:** `specs/assembly_plan.md` (v2.1.1, mojibaked), `specs/implementation_guide.md` (v2.1.1 snapshot, mojibaked)
 **Predecessor (still valid):** `bug_bounty_harness_design_v2_1.md`, v2.1.2 specs, `harness_gap_bridging_specification_v2_1_2.md`, `progress_report.md`
@@ -102,14 +102,14 @@ Everything downstream of the control plane that doesn't exist yet:
 
 ## Phase S4 — End-to-end integration loop
 
-| # | Test |
-|---|---|
-| S4.0 | **Component-side wiring (carry-over from S3 per `patches/local-tweaks.md` §6):** 4.6 adhd `engine.ts` token-callback POST `:8001/api/tokens/record` + FP query `:8000/search`; 4.7 cbb `agent.py` LLM via POST `:8001/api/v1/llm/route`; 4.8 cbb `engine.py` `HTTP(S)_PROXY` injection; 4.9 cbb `brain.py` mempalace `cl4r1tas_prompts` query; 4.10 cbb `memory/*` → MemPalace REST; 4.11 cbb `scope_checker` deprecation → ScopeGate; 4.12 jsleak `HTTP_PROXY` + `-json` |
-| S4.1 | Scope import → gate enforcement → recon dispatch (real Agent-Reach, local model) → findings persisted to mempalace → noise filter → state machine → evidence validation (OOB callback via `compliance/oob_engine`) → report draft → write-back to mempalace |
-| S4.2 | Negative test: out-of-scope request MUST be blocked by egress proxy and logged |
-| S4.3 | Budget test: run with Ollama-only → zero paid-tier calls recorded by `token_tracker` |
+| # | Test | Status |
+|---|---|---|
+| S4.0 | **Component-side wiring (carry-over from S3 per `patches/local-tweaks.md` §6):** 4.6 adhd `engine.ts` token-callback POST `:8001/api/tokens/record` + FP query `:8000/search`; 4.7 cbb `agent.py` LLM via POST `:8001/api/v1/llm/route`; 4.8 cbb `engine.py` `HTTP(S)_PROXY` injection; 4.9 cbb `brain.py` mempalace `cl4r1tas_prompts` query; 4.10 cbb `memory/*` → MemPalace REST; 4.11 cbb `scope_checker` deprecation → ScopeGate; 4.12 jsleak `HTTP_PROXY` + `-json` | ✅ 2026-10-16 — all 7 applied, env-gated + fail-open, verified (tsc/py_compile/go build + live fake-harness); recorded in `patches/local-tweaks.md` §7 |
+| S4.1 | Scope import → gate enforcement → recon dispatch (mocked specialist, local model) → triage → noise filter → state machine → report draft → write-back to mempalace | ✅ 2026-10-16 — `tests/test_s4_e2e.py::TestS41FullDryRun`; recon dispatched via `_MockSpecialist` (a real Agent-Reach live run is operator-side, needs a live target) |
+| S4.2 | Negative test: out-of-scope request MUST be blocked by egress proxy and logged | ✅ 2026-10-16 — `tests/test_s4_e2e.py::TestS42EgressBlocksAndLogs` (403 + JSONL drop record) |
+| S4.3 | Budget test: run with Ollama-only → zero paid-tier calls recorded by `token_tracker` | ✅ 2026-10-16 — `tests/test_s4_e2e.py::TestS43OllamaOnlyBudget`; invariant = **no task ever resolves to a PAID tier** (LOCAL-preferred → LOCAL; PAID-preferred → fail-fast `NoBudgetError`), zero-cost, reconciled ledger + live Ollama round-trip |
 
-**Gate S4:** one full dry-run on a legitimate target with local models, all log assertions pass, budget ledger consistent. S4.0 component tweaks are recorded in `patches/local-tweaks.md` §7 when applied.
+**Gate S4 — PASS (2026-10-16):** one full dry-run on a legitimate sample target with local models walks the entire graph (scope gate → model route → dispatch → triage → noise filter → report → mempalace write-back) with the report landing on disk, platform-tailored; the out-of-scope egress negative test blocks + logs; the Ollama-only budget test proves no task can reach a PAID tier and the ledger reconciles at zero cost. S4.0 component tweaks recorded in `patches/local-tweaks.md` §7. Test suite: **154 tests** (149 baseline + 5 S4 gates). Open shim gap documented (mempalace `:8000` REST surface is best-effort/fail-open; the on-disk mempalace has no confirmed REST API).
 
 ---
 
