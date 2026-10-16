@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ULT_HARNESS · War Room</title>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">▲</span>
+      <div>
+        <h1>ULT_HARNESS <span class="sub">war room</span></h1>
+        <div class="crumb" id="crumb">connecting…</div>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span class="pill" id="conn-pill" data-state="down">link: down</span>
+      <button id="refresh-btn" class="btn ghost" title="Poll now">↻ refresh</button>
+      <button id="halt-btn" class="btn halt" data-state="active">⏸ HALT</button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <!-- Hunt state -->
+    <section class="panel state" id="state-panel">
+      <h2>Hunt State</h2>
+      <div class="state-hero">
+        <div class="hunt-badge" id="hunt-badge">—</div>
+        <div class="state-facts">
+          <div><label>program</label><span id="f-program">—</span></div>
+          <div><label>platform</label><span id="f-platform">—</span></div>
+          <div><label>mode</label><span id="f-mode">—</span></div>
+        </div>
+      </div>
+      <div class="kv-row">
+        <div class="kv"><label>tasks</label><span id="f-tasks">0</span></div>
+        <div class="kv"><label>specialists</label><span id="f-specialists">0</span></div>
+        <div class="kv"><label>scope violations</label><span id="f-violations" class="warn">0</span></div>
+        <div class="kv"><label>noise dropped</label><span id="f-noise">0</span></div>
+        <div class="kv"><label>reports</label><span id="f-reports">0</span></div>
+      </div>
+      <div class="findings-counts" id="findings-counts"></div>
+    </section>
+
+    <!-- Findings -->
+    <section class="panel findings">
+      <h2>Findings <span class="count" id="findings-total">0</span></h2>
+      <div class="list" id="findings-list"><div class="empty">no findings yet</div></div>
+    </section>
+
+    <!-- Budget -->
+    <section class="panel budget">
+      <h2>Budget <span class="count" id="budget-cost">$0.000</span></h2>
+      <div class="budget-hero">
+        <div class="meter">
+          <div class="meter-head">
+            <label>session cost vs $0.50 line</label>
+            <span id="meter-pct">0%</span>
+          </div>
+          <div class="meter-bar"><div class="meter-fill" id="meter-fill"></div></div>
+          <div class="meter-note">
+            <span id="meter-actual">$0.000 used</span>
+            <span id="meter-proj">proj —</span>
+          </div>
+        </div>
+        <div class="budget-facts">
+          <div class="kv"><label>tokens</label><span id="b-tokens">0</span></div>
+          <div class="kv"><label>agents</label><span id="b-agents">0</span></div>
+          <div class="kv"><label>GPU-hours</label><span id="b-gpu">0.0000</span></div>
+        </div>
+      </div>
+      <h3 class="mini">per provider</h3>
+      <table class="tbl" id="per-provider">
+        <thead><tr><th>provider</th><th>calls</th><th>tokens in/out</th><th>cost</th></tr></thead>
+        <tbody><tr><td colspan="4" class="empty">no usage recorded</td></tr></tbody>
+      </table>
+    </section>
+
+    <!-- Routing -->
+    <section class="panel routing">
+      <h2>Model Routing</h2>
+      <div class="lanes">
+        <div class="lane" id="lane-safe">
+          <span class="lane-badge safe">SAFE</span>
+          <span class="lane-note">any hunt content</span>
+        </div>
+        <div class="lane" id="lane-restricted">
+          <span class="lane-badge restricted">RESTRICTED</span>
+          <span class="lane-note">scrubbed content only · <span id="scrub-count">0</span> re-routed to local</span>
+        </div>
+      </div>
+      <table class="tbl" id="providers">
+        <thead>
+          <tr><th>provider</th><th>tier</th><th>lane</th><th>state</th><th>rate</th><th>catalog</th><th>ctx</th></tr>
+        </thead>
+        <tbody><tr><td colspan="7" class="empty">loading…</td></tr></tbody>
+      </table>
+    </section>
+
+    <!-- Event log -->
+    <section class="panel events">
+      <h2>Event Log <span class="count" id="events-total">0</span></h2>
+      <div class="log" id="event-log"><div class="empty">awaiting events…</div></div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <span>same-origin control plane · <code>:8001</code> · data via <code>/api/v1/*</code> + <code>/ws</code></span>
+    <span class="foot-right" id="last-updated">—</span>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

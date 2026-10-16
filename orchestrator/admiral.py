@@ -464,12 +464,75 @@ class OpAdmiral:
         }
 
     # ══════════════════════════════════════════════════════════════════════
+    # Operator controls (S7.2) — halt / resume
+    # ══════════════════════════════════════════════════════════════════════
+
+    async def halt(self, reason: str = "operator") -> bool:
+        """Kill switch: stop dispatching new tasks / LLM calls.
+
+        In-flight calls finish; nothing new is started while ``halted``.
+        Idempotent — halting when already halted is a no-op. Publishes a
+        ``hunt_halted`` event so the war-room event log reflects the action.
+        Returns True when this call actually flipped the state.
+        """
+        if self.halted:
+            return False
+        self.halted = True
+        try:
+            await self.event_bus.publish(
+                "triage",
+                OrchestrationEvent(
+                    event_type="hunt_halted",
+                    correlation_id="-",
+                    source_component="op_admiral",
+                    payload={"reason": reason},
+                ),
+            )
+        except Exception:  # event publishing must never break the kill switch
+            pass
+        logger.warning(f"hunt HALTED (reason={reason})")
+        return True
+
+    async def resume(self) -> bool:
+        """Resume a halted hunt. Idempotent — resuming when active is a no-op.
+        Returns True when this call actually flipped the state."""
+        if not self.halted:
+            return False
+        self.halted = False
+        try:
+            await self.event_bus.publish(
+                "triage",
+                OrchestrationEvent(
+                    event_type="hunt_resumed",
+                    correlation_id="-",
+                    source_component="op_admiral",
+                    payload={},
+                ),
+            )
+        except Exception:
+            pass
+        logger.info("hunt resumed")
+        return True
+
+    # ══════════════════════════════════════════════════════════════════════
     # Status / memory write-back
     # ══════════════════════════════════════════════════════════════════════
 
     def status(self) -> Dict[str, Any]:
-        """GET /api/v1/status — the War Room summary payload."""
+        """GET /api/v1/status — the War Room summary payload.
+
+        S7: also carries the dashboard's data feed — full per-provider budget
+        buckets + GPU-hour meter + the $0.50 session projection (budget), the
+        per-provider routing snapshot from ``ModelRouter.provider_status()``
+        (routing), and the scrub re-route counter that powers the RESTRICTED
+        lane view (lanes).
+        """
         wing = self.token_tracker.get_wing_summary(self.scope.program_handle)
+        try:
+            projection = self.token_tracker.project_standard_session()
+        except Exception as exc:  # projection must never break the status feed
+            logger.warning(f"standard-session projection failed: {exc}")
+            projection = {}
         return {
             "hunt": "halted" if self.halted else "active",
             "dry_run": self.dry_run,
@@ -485,7 +548,14 @@ class OpAdmiral:
                 "total_tokens": wing["total_tokens"],
                 "total_cost_usd": wing["total_cost_usd"],
                 "agents": wing["agent_count"],
+                "agents_detail": wing.get("agents", {}),
+                "per_provider": wing.get("per_provider", {}),
+                "gpu_hours": wing.get("gpu_hours", 0.0),
+                "budget_line_usd": projection.get("budget_line_usd", 0.50),
+                "projection": projection,
             },
+            "routing": self.model_router.provider_status(),
+            "lanes": {"scrub_reroutes": self.model_router.scrub_reroutes},
             "reports_written": len(self.reports),
         }
 
@@ -582,6 +652,51 @@ def build_graph(
 # ═══════════════════════════════════════════════════════════════════════════
 # FastAPI transport (imported lazily — the core brain works without fastapi)
 # ═══════════════════════════════════════════════════════════════════════════
+#
+# The request models live at MODULE level, not inside create_app(): with
+# ``from __future__ import annotations`` every annotation is a string ForwardRef
+# that FastAPI resolves against the module globals. Models defined locally in
+# create_app() can never resolve, so their body params silently degraded to
+# query params (every POST 422'd with "req: Field required"). Pydantic is a
+# declared hard dependency independent of fastapi, so importing BaseModel here
+# keeps the "brain works without fastapi" guarantee intact. (S7 found this —
+# S3 drove ingest_finding() directly and never hit the HTTP layer.)
+
+from pydantic import BaseModel
+
+
+class TriageCallback(BaseModel):
+    finding_id: str = ""
+    title: str
+    description: str
+    vuln_category: str
+    endpoint: str
+    evidence: Dict[str, Any] = {}
+    confidence: float = 0.0
+    metadata: Dict[str, Any] = {}
+
+
+class ConfirmRequest(BaseModel):
+    evidence: Dict[str, Any] = {}
+
+
+class RejectRequest(BaseModel):
+    fp_reason: str
+
+
+class TokenRecordRequest(BaseModel):
+    agent_id: str
+    task_id: str
+    input_tokens: int
+    output_tokens: int
+    model: str
+
+
+class LLMRouteRequest(BaseModel):
+    task_type: str
+    prompt: str
+    agent_id: str = "external"
+
 
 def create_app(admiral: OpAdmiral):
     """Build the REST + WebSocket surface for the admiral (port 8001).
@@ -597,47 +712,32 @@ def create_app(admiral: OpAdmiral):
       POST /api/tokens/record          — 4.6: external token accounting
       POST /api/v1/llm/route           — 4.7: external LLM routing
       GET  /ws                         — live OrchestrationEvent stream
+
+    S7 war-room (own UI, same-origin on :8001 — T3MP3ST is a design reference
+    only, never vendored):
+      GET  /                           — the war-room dashboard (index.html)
+      GET  /war_room                   — alias for the dashboard
+      GET  /static/{name}              — dashboard app.js / style.css
+      GET  /api/v1/providers           — S7.3 per-provider routing snapshot
+      POST /api/v1/halt                — S7.2 operator kill switch (idempotent)
+      POST /api/v1/resume              — S7.2 resume (idempotent)
+      POST /api/v1/finding/{id}/confirm — S7.2 adjudication (v1 namespace)
+      POST /api/v1/finding/{id}/reject  — S7.2 adjudication (v1 namespace)
     """
     try:
         from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+        from fastapi.responses import FileResponse, JSONResponse
     except ImportError as exc:  # pragma: no cover
         raise RuntimeError(
             "fastapi is required for the admiral API server — activate the "
             "project venv (.venv) or `pip install fastapi`."
         ) from exc
 
-    from pydantic import BaseModel
-
+    # Request models are module-level (see the note above create_app) —
+    # local definitions would break body-param resolution under
+    # ``from __future__ import annotations``.
     app = FastAPI(title="OpAdmiral", version="2.1.2")
     connections: List[WebSocket] = []
-
-    class TriageCallback(BaseModel):
-        finding_id: str = ""
-        title: str
-        description: str
-        vuln_category: str
-        endpoint: str
-        evidence: Dict[str, Any] = {}
-        confidence: float = 0.0
-        metadata: Dict[str, Any] = {}
-
-    class ConfirmRequest(BaseModel):
-        evidence: Dict[str, Any] = {}
-
-    class RejectRequest(BaseModel):
-        fp_reason: str
-
-    class TokenRecordRequest(BaseModel):
-        agent_id: str
-        task_id: str
-        input_tokens: int
-        output_tokens: int
-        model: str
-
-    class LLMRouteRequest(BaseModel):
-        task_type: str
-        prompt: str
-        agent_id: str = "external"
 
     @app.get("/api/v1/status")
     async def status():
@@ -670,13 +770,47 @@ def create_app(admiral: OpAdmiral):
 
     @app.post("/api/triage/{task_id}/confirm")
     async def confirm(task_id: str, req: ConfirmRequest):
-        task = await admiral.confirm_finding(task_id, req.evidence)
+        try:
+            task = await admiral.confirm_finding(task_id, req.evidence)
+        except KeyError:
+            return JSONResponse(status_code=404,
+                                 content={"detail": f"unknown task_id: {task_id}"})
         return {"task_id": task_id, "status": task.status.value}
 
     @app.post("/api/triage/{task_id}/reject")
     async def reject(task_id: str, req: RejectRequest):
-        task = await admiral.reject_finding(task_id, req.fp_reason)
+        try:
+            task = await admiral.reject_finding(task_id, req.fp_reason)
+        except KeyError:
+            return JSONResponse(status_code=404,
+                                 content={"detail": f"unknown task_id: {task_id}"})
         return {"task_id": task_id, "status": task.status.value}
+
+    # ── S7.2: v1 finding adjudication (dashboard namespace) ──────────────
+    # The dashboard lists findings by task_id (see GET /api/v1/findings), so
+    # ``{finding_id}`` here is that task_id. These delegate to the exact same
+    # ``confirm_finding``/``reject_finding`` core as the legacy /api/triage/*
+    # routes — one line of shared logic each, no duplicated state handling.
+
+    @app.post("/api/v1/finding/{finding_id}/confirm")
+    async def finding_confirm(finding_id: str, req: ConfirmRequest):
+        try:
+            task = await admiral.confirm_finding(finding_id, req.evidence)
+        except KeyError:
+            return JSONResponse(status_code=404,
+                                 content={"detail": f"unknown finding_id: {finding_id}"})
+        return {"finding_id": finding_id, "task_id": task.task_id,
+                "status": task.status.value}
+
+    @app.post("/api/v1/finding/{finding_id}/reject")
+    async def finding_reject(finding_id: str, req: RejectRequest):
+        try:
+            task = await admiral.reject_finding(finding_id, req.fp_reason)
+        except KeyError:
+            return JSONResponse(status_code=404,
+                                 content={"detail": f"unknown finding_id: {finding_id}"})
+        return {"finding_id": finding_id, "task_id": task.task_id,
+                "status": task.status.value}
 
     @app.post("/api/tokens/record")
     async def record_tokens(req: TokenRecordRequest):
@@ -729,5 +863,55 @@ def create_app(admiral: OpAdmiral):
         except WebSocketDisconnect:
             if websocket in connections:
                 connections.remove(websocket)
+
+    # ── S7: war-room dashboard (own UI, same-origin — no CORS, no new port) ──
+    # FileResponse / JSONResponse come from the lazy fastapi import above;
+    # Path is already module-level.
+    _UI_DIR = Path(__file__).resolve().parent.parent / "ui" / "war_room"
+    _MIME = {".html": "text/html", ".js": "text/javascript", ".css": "text/css"}
+
+    def _static(name: str):
+        # Only the three known dashboard assets are servable — a defense-in-depth
+        # path guard on top of the extension whitelist (no traversal possible).
+        candidate = (_UI_DIR / name).resolve()
+        if candidate.parent != _UI_DIR or not candidate.is_file():
+            return JSONResponse(status_code=404, content={"detail": "not found"})
+        suffix = candidate.suffix
+        return FileResponse(
+            str(candidate),
+            media_type=_MIME.get(suffix, "application/octet-stream"),
+        )
+
+    @app.get("/", include_in_schema=False)
+    async def war_room_index():
+        index = _UI_DIR / "index.html"
+        if not index.is_file():
+            return JSONResponse(status_code=503, content={"detail": "war-room UI not built"})
+        return FileResponse(str(index), media_type="text/html")
+
+    @app.get("/war_room", include_in_schema=False)
+    async def war_room_alias():
+        return await war_room_index()
+
+    @app.get("/static/{name}", include_in_schema=False)
+    async def war_room_static(name: str):
+        return _static(name)
+
+    @app.get("/api/v1/providers")
+    async def providers():
+        """S7.3 — per-provider routing snapshot (feed for the Providers panel)."""
+        return admiral.model_router.provider_status()
+
+    @app.post("/api/v1/halt")
+    async def halt():
+        """S7.2 — operator kill switch. Idempotent (halt-when-halted = no-op)."""
+        changed = await admiral.halt(reason="operator_api")
+        return {"halted": admiral.halted, "changed": changed}
+
+    @app.post("/api/v1/resume")
+    async def resume():
+        """S7.2 — resume a halted hunt. Idempotent (resume-when-active = no-op)."""
+        changed = await admiral.resume()
+        return {"halted": admiral.halted, "changed": changed}
 
     return app

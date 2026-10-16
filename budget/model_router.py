@@ -274,6 +274,14 @@ class ModelRouter:
         self._registry: List[Provider] = build_registry(config)
         # Injectable transport for offline tests. None → real HTTP via aiohttp.
         self._http = None
+        # S7.3: running count of prompts re-routed to local by the scrub hard
+        # rule (exposed to the war-room Lanes panel via ``scrub_reroutes``).
+        self._scrub_reroutes: int = 0
+
+    @property
+    def scrub_reroutes(self) -> int:
+        """Number of prompts the scrubber re-routed to a local backend (S7.3)."""
+        return self._scrub_reroutes
 
     # ── Startup ──────────────────────────────────────────────────────────
 
@@ -509,6 +517,7 @@ class ModelRouter:
             )
             stops = local_stops
             scrub_rerouted = list(scrub_result.matches)
+            self._scrub_reroutes += 1
 
         system = kwargs.get("system")
         max_tokens = kwargs.get("max_tokens")
@@ -729,7 +738,7 @@ class ModelRouter:
 
     def provider_status(self) -> List[Dict[str, Any]]:
         """Per-provider snapshot for the war-room dashboard (S7.3): name, tier,
-        lane, enabled/available, model catalog, GPU-hour cost."""
+        lane, enabled/available, model catalog, rate headroom, GPU-hour cost."""
         return [
             {
                 "name": p.name,
@@ -742,6 +751,7 @@ class ModelRouter:
                 "live_models": list(p.live_models) if p.live_models else None,
                 "context": p.context,
                 "rpm": p.rpm,
+                "rpd": p.rpd,
                 "hourly_cost": p.hourly_cost,
             }
             for p in self._registry

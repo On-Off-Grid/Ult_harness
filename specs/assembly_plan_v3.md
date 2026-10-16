@@ -90,7 +90,7 @@ Everything downstream of the control plane that doesn't exist yet:
 | S3.4 | Rewrite any S2-RED modules here | trust audit |
 
 **Status: ✅ COMPLETE 2026-10-15.**
-- **S3.1** `orchestrator/admiral.py` — `OpAdmiral` core (pure-Python, fastapi-free) + lazy `create_app()` REST/WS surface (12 routes, verified against `.venv` fastapi 0.141). Gap-spec blueprint constructor mismatches corrected against S2-verified signatures (`TokenTracker(event_bus, default_budget)`, `ScopeGate(target_scope)`, `SessionManager(auth_config, …)`). Harness side of 4.6/4.7 shipped: `record_tokens()` → `/api/tokens/record`, `route_llm_request()` → `/api/v1/llm/route`. Kill switch: 3 scope violations → hunt halted.
+- **S3.1** `orchestrator/admiral.py` — `OpAdmiral` core (pure-Python, fastapi-free) + lazy `create_app()` REST/WS surface (12 routes at S3, 16 after S7 added the war-room routes, verified against `.venv` fastapi 0.141). Gap-spec blueprint constructor mismatches corrected against S2-verified signatures (`TokenTracker(event_bus, default_budget)`, `ScopeGate(target_scope)`, `SessionManager(auth_config, …)`). Harness side of 4.6/4.7 shipped: `record_tokens()` → `/api/tokens/record`, `route_llm_request()` → `/api/v1/llm/route`. Kill switch: 3 scope violations → hunt halted.
 - **S3.2** `reporting/taxonomy.py` (all 16 `VulnCategory` → VRT/CWE/CVSS 3.1) + `reporting/writers.py` (CONFIRMED/CHAINED-only gate via `ReportGateError`; H1/Intigriti/YWH tailored, BC/Immunefi generic; `workspace/<wing>/reports/`).
 - **S3.3** `main.py` — `init` / `run [--dry-run]` / `stop`. Operator `--platform` is authoritative over importer-stamped platform. Live mode: mitmdump spawn + uvicorn + optional session bootstrap. Optional `.env` loader (python-dotenv, non-fatal).
 - **S3.4** N/A — no S2-RED modules remained.
@@ -180,7 +180,14 @@ Rejected: Cohere (non-commercial only), ModelScope + SiliconFlow (real-name veri
 
 `local_heavy_url`, `local_heavy_api_key`, `local_heavy_hourly_cost`, `gemini_api_key`, `mistral_api_key`, `openrouter_api_key`, `nvidia_api_key`, `cerebras_api_key`, `cloudflare_account_id`, `cloudflare_api_token`, `github_token`, per-provider `enabled` flags. Keys from env (`.env`, gitignored) — **never in git**.
 
+> **Status (2026-10-16):** split into **S5a (build, mock-tested, keyless)** and **S5b (live verification, needs the OpenRouter $10 top-up).** **S5a is DONE** — commits `9d6101e` (S5a.1 config), `0c395a4` (S5a.2 registry+adapters+scrub+tracker), `1456711` (S5a.3 router + S5 gate tests). Suite at **179 passed** (154 baseline + 25 S5 gates). **S5b is blocked** on the operator's top-up (live 200-per-provider + live `/models` re-check) and runs strictly last.
+
+### S5.8 — Gate S5 status
+
 **Gate S5:** (1) router resolves every routing-table entry to a live provider (dry-run with mocked calls); (2) one real call per enabled provider returns 200 and is logged with provider/tier/lane; (3) 429 simulation rotates to the next provider; (4) scrub hook blocks a prompt containing a fake API key on RESTRICTED providers and re-routes it to LOCAL; (5) token tracker shows per-provider buckets; (6) cost projection for a standard session ≤ $0.50 excluding optional GPU hours.
+
+- **S5a (mocked, keyless) — PASS.** Items (1) `test_gate1_table_integrity_full_config`; (3) `test_gate3_groq_429_rotates_to_openrouter` + `test_all_stops_429_raises_no_budget`; (4) `test_gate4_*` (incl. RESTRICTED gemini + scrub-refusal); (5) `test_gate5_per_provider_buckets`; (6) `test_gate6_standard_session_projection_within_budget`. Plus LOCAL_HEAVY toggle, two-model consensus, discovery fail-open, Ollama-only never-paid. All in `tests/test_s5_router.py` (HTTP injected via `ModelRouter._http`, registry from `HarnessConfig`).
+- **S5b (live, post top-up) — PENDING.** Item (2) one real 200 per enabled provider logged with provider/tier/lane + a live `GET /models` re-check of every enabled catalog. Run only after the OpenRouter $10 top-up so the paid-overflow model resolves too.
 
 ### S5.7 — Expected cost model (replaces `model_routing_guide.md` §5)
 
@@ -208,6 +215,42 @@ Subscription comparison (why no $20/mo Claude/ChatGPT/Kimi): consumer subscripti
 - ✅ Archive STORM-HUNT: copy `~/.gemini/antigravity-cli/brain/756a3d23-*/storm_hunt_*.md` into `docs/reference/storm-hunt/` (7 files) + a `README.md` marking it read-only; **separate project — do not merge code**.
 
 **Gate S6:** a new agent session, given only `OPERATIONS.md`, can run the S4.1 command successfully. → **PASS** (verified 2026-10-16: `init` + `run --dry-run` from a fresh temp dir walked the full graph, report on disk with `**Platform:** hackerone` + CWE-89, zero-cost budget). The guide-rewrite item above is the only open S6 sub-task and is owned by S5.
+
+---
+
+## Phase S7 — Operator war-room dashboard (own UI, same-origin on :8001)
+
+> Added 2026-10-16. The operator wants a single screen to **visualize and tweak** the hunt live: state, findings, budget, and routing — plus operator controls (confirm/reject a finding, halt/resume). This is **our own** dashboard, not a vendored third-party UI: **T3MP3ST is a design reference only (AGPL) — never vendor its code.** It is served **same-origin on the admiral port (:8001)** by `orchestrator.admiral.create_app()`, so it shares the control plane and the egress/egress-proxy trust boundary. No new port, no CORS.
+
+> **Status (2026-10-17): DONE.** All four sub-phases shipped and green — `ui/war_room/` (vanilla, offline), static mount in `create_app()`, the full `status()` feed (per-provider budget buckets + GPU meter + $0.50 projection + routing snapshot + RESTRICTED scrub counter), `POST /api/v1/halt`|`resume` (idempotent, event-emitting), `POST /api/v1/finding/{id}/confirm`|`reject` (v1 namespace, delegating to the shared core), and `GET /api/v1/providers`. **20 gate tests** in `tests/test_s7_warroom.py`; suite at **199 passed** (179 baseline + 20 S7). S7.4 browser-visual smoke is the one remaining manual step. **Bonus fix (S7 uncovered a latent S3 bug):** the Pydantic request models were defined *locally inside* `create_app()`, so under `from __future__ import annotations` their body params degraded to **query** params and every `POST` 422'd. Moved to module level (pydantic is a hard dep, fastapi stays lazy) + added `404` guards on unknown ids.
+
+### S7.1 — Read-only shell (phase 1)
+
+- New dir `ui/war_room/` (`index.html` + `app.js` + `style.css`), static, no build step, no framework dependency (vanilla JS so it runs offline and needs no npm).
+- `admiral.create_app()` mounts it: `GET /` (and `/war_room`) → `index.html`; `/static/...` → `app.js`/`style.css`. The existing `/api/v1/...` JSON endpoints stay the data source.
+- Reads (poll or SSE from the admiral): **hunt state** (phases ①–⑫, current stage, running/halted), **findings** (live list with category/CWE/severity/status), **budget** (per-agent tokens + cost, per-provider buckets from `TokenTracker.get_wing_summary()`, GPU-hour meter, `$0.50` projection from `project_standard_session()`), **routing** (per-provider enabled/available/lane/catalog + live models from `ModelRouter.provider_status()`).
+- **Gate S7.1:** a fresh browser tab at `http://127.0.0.1:8001/` renders the four panels; a `pytest` TestClient hits `/` (200, HTML) and the data endpoints; no network/npm needed.
+
+### S7.2 — Operator controls (phase 2)
+
+- `POST /api/v1/halt` → `admiral.halted = True` (stop dispatching new findings / new LLM calls in flight keep finishing).
+- `POST /api/v1/resume` → `admiral.halted = False`.
+- `POST /api/v1/finding/{id}/confirm` and `POST /api/v1/finding/{id}/reject` → operator adjudication written to the finding record + a war-room event.
+- All controls are **idempotent + guarded** (halt when already halted is a no-op 200; a bad id is 404). Controls emit `OrchestrationEvent`s so they appear in the same event log the panels read.
+- **Gate S7.2:** TestClient exercises halt→(state flips)→resume; confirm/reject mutate the finding; a halted admiral rejects a new dispatch with a clear signal.
+
+### S7.3 — Per-provider / per-lane routing views (phase 3)
+
+- A **Providers** panel: one row per registry provider — name, tier, lane (SAFE/RESTRICTED badge), enabled/available, RPM/RPD headroom, context, hourly cost (LOCAL_HEAVY), configured catalog vs. live catalog (delta highlighted), and last-used.
+- A **Lanes** panel: SAFE vs. RESTRICTED split with the scrub-refusal counter (how many prompts were re-routed to local, from `response.raw["scrub_rerouted"]`), so the operator can see the data-lane guard firing in real time.
+- **Gate S7.3:** the Providers panel reflects a mocked multi-provider config (full-keyed) and a degraded config (one provider 429-limited / unavailable) with the right badges; a scrubbed call increments the RESTRICTED re-route counter.
+
+### S7.4 — Polish + kill-switch UX (phase 4)
+
+- Auto-refresh cadence + a manual "refresh now"; halt is a prominent red toggle (the kill switch) with a confirm dialog; cost meters turn amber at 50% of the `$0.50` line and red past it.
+- **Gate S7.4:** a visual smoke (manual) + a regression that the halt toggle's backend state and the UI's displayed state agree after a `halt` → `resume` cycle.
+
+**Gate S7 (overall):** `tests/test_s7_warroom.py` green — static serving, all read endpoints, halt/resume/confirm/reject, and the per-provider + lane views — with the same `TestClient` + mocked-registry pattern as S5 (no live keys, no network). The dashboard adds no new secrets and never renders a raw provider key (the `provider_status` feed exposes `has_key` bools only).
 
 ---
 
