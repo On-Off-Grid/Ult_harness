@@ -5,12 +5,14 @@ new operator) and you have nothing else, this file is enough to verify the
 harness end-to-end. It tells you **what exists, what is verified, how to run
 it, and what is still open.**
 
-> **One-sentence status (2026-10-16):** Phases S0–S4 of the surgical restart
-> (`specs/assembly_plan_v3.md`) are complete and committed — the Python
-> control plane is built, audited (S2), and integrated end-to-end (S4) with a
-> **154-test suite all green**. Phase S5 (model-router redesign) is **held**
-> pending a small operator top-up; everything below that does not depend on S5
-> is live and runnable today.
+> **One-sentence status (2026-10-17):** Phases S0–S4 plus **S5a** (the
+> multi-provider 4-tier model router, mock-tested) and **S7** (the operator
+> war-room dashboard on `:8001`) are complete and committed — the control
+> plane is built, audited (S2), integrated end-to-end (S4), and has a
+> **199-test suite all green**. Phase **S5b (live provider verification)** is
+> the only S5 remainder and is **blocked on the operator's $10 OpenRouter
+> top-up**; the live run path (3.3) is wired and runnable, with per-provider
+> 200-verification still to do after the top-up.
 
 ---
 
@@ -62,7 +64,8 @@ All commands assume you are in the `Ult_harness/` repo root.
 ```bash
 cd Ult_harness
 python3 -m pytest tests/ -q
-# → 154 passed   (104 S2 audit + 45 S3 core + 5 S4 E2E)
+# → 199 passed   (154 baseline: 104 S2 audit + 45 S3 core + 5 S4 E2E,
+#                 + 25 S5 router gates, + 20 S7 war-room gates)
 ```
 
 - No venv, no network (the one health-check test targets a closed localhost
@@ -122,13 +125,51 @@ status      : {"hunt":"active","dry_run":true,"platform":"hackerone",
 The report on disk contains `**Platform:** hackerone` and `CWE-89` (SQLi).
 Budget is **zero** — a dry-run makes no real LLM calls.
 
-### 3.3 Run live (real components, real LLM) — S5-dependent
+### 3.3 Run live (real components, real LLM)
 
 `python main.py run --program <p>` (no `--dry-run`) spawns `mitmdump` +
 `uvicorn` and exports the `HARNESS_*` env vars that make the fetched components
-talk back into the harness. **Hold until S5 is done** (see §5) — the model
-router is still the pre-S5 3-tier version and the FREE provider lanes are not
-yet wired. When S5 lands this section is updated.
+talk back into the harness. The model router is now the **S5 4-tier,
+multi-provider, lane-aware** version (§5 item 1), so the FREE provider lanes
+are wired. The live path runs with whatever keys are present in `.env`:
+
+- **Ollama-only (no paid keys):** the zero-spend floor. No task ever resolves
+  to a paid tier (S4.3 invariant); paid-preferred tasks fail fast with
+  `NoBudgetError`.
+- **Free pool keyed (Groq/OpenRouter/Mistral/Gemini/GitHub/Cloudflare):** each
+  enabled provider joins its tier in failover order; `startup_discovery()`
+  reconciles every live `GET /models` catalog against the configured
+  preferences (fail-open).
+
+> **S5b caveat (live verification pending).** The router is built and
+> mock-tested keyless (S5a), but the **one-real-200-per-provider** gate item is
+> not yet run against live endpoints — that is held on the operator's **$10
+> OpenRouter top-up** (see §5 item 1). A live run with free-tier keys will work
+> and be logged per-provider/tier/lane, but treat the per-provider 200 as
+> unverified until S5b passes.
+
+### 3.4 Open the operator war-room dashboard (S7)
+
+The control plane serves its own war-room UI **same-origin on `:8001`** (no new
+port, no CORS; T3MP3ST is a design reference only — never vendored). In a live
+run, open `http://127.0.0.1:8001/` (or `/war_room`) in a browser tab. It
+polls `:8001` for the four panels — **Hunt State**, **Findings**, **Budget**
+(per-provider buckets + GPU-hour meter + $0.50 session projection), and
+**Model Routing** (per-provider tier / lane / state / catalog drift) — plus
+operator controls:
+
+- **HALT / RESUME** — the kill switch (`POST /api/v1/halt`, `/api/v1/resume`).
+  Idempotent; emits `hunt_halted` / `hunt_resumed` on the triage topic so the
+  live `/ws` event stream reflects it. A halted admiral skips new dispatches.
+- **Confirm / reject** per finding — `POST /api/v1/finding/{id}/confirm|reject`
+  (v1 namespace delegating to the shared triage core; the legacy
+  `/api/triage/{id}/…` routes remain).
+
+Everything is read-only-observation plus these operator controls — the UI
+renders **no raw provider keys** (the `provider_status` feed exposes `has_key`
+booleans only). This is the S7 surface; its gates live in
+`tests/test_s7_warroom.py` (20 tests, TestClient + mocked registry, no
+network/keys).
 
 ---
 
@@ -167,19 +208,23 @@ components are byte-for-byte standalone. Full record + re-apply recipe:
 
 Be explicit about these — do not paper over them.
 
-1. **S5 — model-router redesign: HELD.** The current router is the pre-S5
-   3-tier (`LOCAL / PAID_FREE / PAID_PREMIUM`, single Groq free tier). The S5
-   rework — 4-tier structure (adds `LOCAL_HEAVY`), the multi-provider FREE pool
-   (Groq primary, OpenRouter failover, GitHub Models, Mistral, Gemini),
-   per-provider rate limiters + 429 rotation, runtime `/models` discovery,
-   data-lane (SAFE/RESTRICTED) scrub hook, per-provider tracker buckets — is
-   fully specified in `specs/assembly_plan_v3.md` S5.1–S5.7 but **not
-   implemented**. It is held pending a **$10 OpenRouter top-up** (operator
-   action) so the live 200-per-provider gate item can be verified. Until S5:
-   treat the LIVE run path (3.3) as not-ready; the dry-run and all tests are
+1. **S5b — live provider verification: PENDING (blocked on operator top-up).**
+   The S5 router rework is **built and mock-tested (S5a DONE)** — 4-tier
+   structure (`LOCAL / LOCAL_HEAVY / PAID_FREE / PAID_PREMIUM`), the
+   multi-provider FREE pool (Groq primary, OpenRouter/Mistral/Gemini/Cloudflare
+   failover, GitHub Models free frontier), per-provider rate limiters + 429
+   rotation, runtime `/models` discovery, SAFE/RESTRICTED data-lane scrub hook,
+   per-provider tracker buckets, two-model validation consensus. Spec S5.1–S5.8;
+   Gate S5 items 1 & 3–6 are green in `tests/test_s5_router.py`. The **one
+   remaining item (Gate S5 #2)** — one real **200** per enabled provider
+   (logged with provider/tier/lane) + a live `GET /models` re-check — needs
+   live keys and runs **strictly last**, held on the **$10 OpenRouter top-up**
+   (operator action) so the paid-overflow model resolves too. Until S5b: the
+   live run path (3.3) is wired and safe to run on whatever keys are in `.env`,
+   but per-provider 200s are unverified; the dry-run and all tests are
    unaffected and the S4.3 "no paid spend" invariant still holds.
-   - `model_routing_guide.md` is therefore **stale** — see its supersession
-     banner. It will be rewritten from S5.2–S5.7 when S5 lands.
+   - `model_routing_guide.md` has been **rewritten** to the shipped S5 router
+     (2026-10-17) and is now current.
 2. **S0.7 — AMD Developer pack cloud-GPU hours: UNVERIFIED.** No local
    artifacts found; needs a manual login to the AMD developer portal. Until
    then `LOCAL_HEAVY` is **off/optional** and heavy reasoning leans on the free
@@ -233,11 +278,11 @@ lanes (S5) and a live `LOCAL_HEAVY` GPU need keys.
 | File | Purpose |
 |---|---|
 | `OPERATIONS.md` | **This file.** The entry point. |
-| `specs/assembly_plan_v3.md` | The approved plan (S0–S6) + gate definitions + current status. |
+| `specs/assembly_plan_v3.md` | The approved plan (S0–S7) + gate definitions + current status. |
 | `progress_report.md` | Phase-by-phase narrative of what was built and why. |
 | `docs/trust_audit.md` | S2 verification verdicts + the F1–F6 fixes + findings. |
 | `docs/provisioning.md` | Accounts, keys, hardware, and the S0.7 AMD check. |
 | `patches/local-tweaks.md` | All local component modifications + the §7 re-apply recipe. |
 | `CREDITS.md` | Provenance, licenses, and **pin commits** for the 8 components. |
-| `model_routing_guide.md` | LLM routing — **STALE, superseded by S5** (see its banner). |
+| `model_routing_guide.md` | LLM routing & task allocation — **current** (rewritten to the shipped S5 4-tier, multi-provider router, 2026-10-17). |
 | `docs/reference/storm-hunt/` | Archived STORM-HUNT orchestrator reference (read-only, separate project). |
