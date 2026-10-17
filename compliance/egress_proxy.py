@@ -30,7 +30,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from mitmproxy import http  # type: ignore
@@ -107,7 +107,7 @@ class EgressProxy:
 
     def _log(self, flow: http.HTTPFlow, decision: str, reason: str, passive: bool = False):
         entry = {
-            "ts": datetime.utcnow().isoformat(),
+            "ts": datetime.now(timezone.utc).isoformat(),
             "component": "egress_proxy",
             "correlation_id": flow.request.headers.get("X-Correlation-ID", ""),
             "level": "INFO",

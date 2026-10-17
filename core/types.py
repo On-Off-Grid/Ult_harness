@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class Platform(str, Enum):
@@ -118,7 +118,8 @@ class Task:
     target_endpoint: str
     vuln_category: VulnCategory
     status: VulnStatus = VulnStatus.IDENTIFIED
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc))
     metadata: Dict[str, Any] = field(default_factory=dict)
 
 
@@ -127,6 +128,7 @@ class OrchestrationEvent:
     event_type: str           # e.g. "validation_started", "finding_confirmed", "budget_warning"
     correlation_id: str
     source_component: str     # e.g. "sqli_specialist", "triage_controller"
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc))
     payload: Dict[str, Any] = field(default_factory=dict)
 

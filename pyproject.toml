@@ -8,14 +8,33 @@ version = "3.0.0"
 description = "Python control-plane for the Autonomous Bug Bounty Harness"
 authors = [{ name = "Security Architect" }]
 requires-python = ">=3.10"
+# S8.3 trim (2026-10-17): base = what the control plane actually imports at
+# test/dry-run/brain time (S2 finding N2). Live/ingest-only deps moved to
+# optional extras below. Note: `fastapi` is kept in BASE (not moved) — the S7
+# war-room tests import it at test-run time (create_app -> `from fastapi import
+# ...`), so it is a test-time dep, not aspirational; the original S2 note that
+# listed it as aspirational predates S7. `requests` was imported nowhere and is
+# dropped (re-add a line if a live path needs it).
 dependencies = [
     "fastapi>=0.100.0",
-    "uvicorn>=0.22.0",
     "pydantic>=2.0",
-    "requests>=2.31.0",
     "aiohttp>=3.8.0",
     "mitmproxy>=10.0.0",
+]
+
+[project.optional-dependencies]
+# Serve the real (non-dry-run) API + war room on :8001.
+live = [
+    "uvicorn>=0.22.0",
+]
+# Live-ingest write-back to the mempalace (a build-fetched, gitignored
+# component; its chroma backend is the only place chromadb is touched).
+memory = [
     "chromadb>=0.4.0",
+]
+# Report generation: YAML scope/finding files + CVSS scoring (aspirational —
+# not yet imported by the brain, kept available for the live report path).
+reporting = [
     "pyyaml>=6.0",
     "cvss>=2.6",
 ]

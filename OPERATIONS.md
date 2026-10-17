@@ -5,13 +5,19 @@ new operator) and you have nothing else, this file is enough to verify the
 harness end-to-end. It tells you **what exists, what is verified, how to run
 it, and what is still open.**
 
-> **One-sentence status (2026-10-17):** Phases S0–S4, **S5 (a+b)**, and **S7**
-> (the operator war-room dashboard on `:8001`) are complete and committed — the
-> control plane is built, audited (S2), integrated end-to-end (S4), has a
-> **227-test suite all green**, and its **S5b live provider verification PASSED
-> post top-up** (5/6 enabled providers returned a live 200 logged per
-> provider/tier/lane + paid overflow resolved; `github_models` reported
-> UNVERIFIABLE because the upstream service was retired 2026-07-30).
+> **One-sentence status (2026-10-17):** Phases S0–S4, **S5 (a+b)**, **S7**
+> (the operator war-room dashboard on `:8001`), and **S8.1–S8.3** are complete
+> and committed — the control plane is built, audited (S2), integrated
+> end-to-end (S4), has real OOB correlation (Interactsh, S8.1), the
+> reasoning-model empty-content guard (S8.2, live-probe PASS), and the S8.3
+> housekeeping sweep (timezone-aware timestamps, trimmed `pyproject` deps),
+> has a **239-test suite all green (1 warning, unrelated httpx2/Starlette note)**,
+> and its **S5b live provider verification PASSED post top-up** (5/6 enabled
+> providers returned a live 200 logged per provider/tier/lane + paid overflow
+> resolved; `github_models` reported UNVERIFIABLE because the upstream service
+> was retired 2026-07-30). Next: **S8.4** first live hunt (held — needs an
+> operator-authorized, in-scope target), **S8.5** war-room visual smoke
+> (during S8.4).
 
 ---
 
@@ -63,8 +69,9 @@ All commands assume you are in the `Ult_harness/` repo root.
 ```bash
 cd Ult_harness
 python3 -m pytest tests/ -q
-# → 199 passed   (154 baseline: 104 S2 audit + 45 S3 core + 5 S4 E2E,
-#                 + 25 S5 router gates, + 20 S7 war-room gates)
+# → 239 passed   (154 baseline: 104 S2 audit + 45 S3 core + 5 S4 E2E,
+#                 + 25 S5 router gates, + 20 S7 war-room gates,
+#                 + 5 S5b regression, + 23 S8.1 OOB, + 12 S8.2 empty-content)
 ```
 
 - No venv, no network (the one health-check test targets a closed localhost
@@ -241,10 +248,15 @@ Be explicit about these — do not paper over them.
    artifacts found; needs a manual login to the AMD developer portal. Until
    then `LOCAL_HEAVY` is **off/optional** and heavy reasoning leans on the free
    `qwen/qwen3.8-27b` (Groq). Record the result in `docs/provisioning.md`.
-3. **Mempalace `:8000` REST surface — NOT confirmed.** Mempalace ships as the
-   ChromaDB/MCP/daemon package; there is no confirmed `:8000` REST endpoint.
-   Every mempalace call from the components is **best-effort fail-open** (a
-   dead palace never breaks a hunt). Local JSONL stays authoritative. Gap
+3. **Mempalace `:8000` REST surface — NOT confirmed.** The control plane
+   *defaults* `mempalace_url` to `http://127.0.0.1:8000` and the specialists
+   `POST {mempalace_url}/search` there (`core/config.py`, `agents/
+   specialist_base.py`), but mempalace's shipped HTTP surfaces are the
+   **daemon** (`/health`, `/jobs`, `/shutdown`, ephemeral port) and the **MCP
+   JSON-RPC server** (`/healthz`, `/statusz`) — neither confirms a `:8000`
+   REST `/search` endpoint. Every mempalace call is therefore **best-effort
+   fail-open** (a dead palace never breaks a hunt); local JSONL stays
+   authoritative. Re-confirm during S8.4 if the operator runs mempalace. Gap
    documented in `patches/local-tweaks.md` §7.
 4. ~~**OOB interaction correlation is a skeleton.**~~ **CLOSED (S8.1, 2026-10-17).**
    `OOBEngine` now speaks real Interactsh (register / poll / deregister) with an
@@ -255,31 +267,53 @@ Be explicit about these — do not paper over them.
    blind SSRF/RCE/XXE finding, then VALIDATING → CONFIRMED with no LLM in the
    loop. Config: `INTERACTSH_MODE` (`public` | `selfhosted` | `off`),
    `INTERACTSH_URL`, optional `INTERACTSH_API_TOKEN`. Verified offline in
-   `tests/test_s8_oob.py` (227-test suite). A live (non-mocked) Interactsh
-   session is exercised for the first time during the S8.4 hunt.
-5. **Minor housekeeping.** `datetime.utcnow()` deprecation warnings on Python
-   3.13 (S2 finding N4) — cosmetic, sweep is deferred. `pyproject.toml` still
-   lists aspirational deps (`fastapi`, `chromadb`, `cvss`) the control plane
-   does not import at test/dry-run time (S2 finding N2); they are only pulled
-   in live/ingest paths.
+   `tests/test_s8_oob.py`. A live (non-mocked) Interactsh session is
+   exercised for the first time during the S8.4 hunt.
+5. ~~**Minor housekeeping.**~~ **CLOSED (S8.3, 2026-10-17).** (a) `datetime.
+   utcnow()` deprecations (S2 finding N4) swept across the control plane —
+   `core/types.py`, `budget/token_tracker.py`, `compliance/egress_proxy.py`
+   now use timezone-aware `datetime.now(timezone.utc)` (timestamps become
+   `+00:00`-aware; no naive-format consumer depended on the old string shape).
+   (b) `pyproject.toml` dep trim (S2 finding N2): base is now only what the
+   control plane actually imports at test/dry-run/brain time (`fastapi` — a
+   real S7 *test-time* dep, kept in base — `pydantic`, `aiohttp`, `mitmproxy`);
+   live/ingest-only deps moved to extras (`uvicorn` → `live`, `chromadb` →
+   `memory`, `pyyaml`+`cvss` → `reporting`); the never-imported `requests` was
+   dropped. (c) the mempalace `:8000` note above re-confirmed.
 
-**S8 is in progress — S8.1 done (2026-10-17).** S0–S7 are done and the control
-plane is proven to *run*; it is not yet proven to *hunt*. S8 closes the three
-findings a real hunt would trip over, then runs the first live hunt. Detail in
-`specs/assembly_plan_v3.md` §S8.1–S8.5. **S8.1 (OOB correlation via
-Interactsh) is DONE**: real register/poll/deregister lifecycle in
-`compliance/oob_engine.py` (injectable `http` seam, fail-open,
+**S8 is in progress — S8.1 + S8.2 + S8.3 done, S8.4 (first live hunt) next
+(2026-10-17).** S0–S7 are done and the control plane is proven to *run*; it is
+not yet proven to *hunt*.
+S8 closes the three findings a real hunt would trip over, then runs the first
+live hunt. Detail in `specs/assembly_plan_v3.md` §S8.1–S8.5. **S8.1 (OOB
+correlation via Interactsh) is DONE**: real register/poll/deregister lifecycle
+in `compliance/oob_engine.py` (injectable `http` seam, fail-open,
 `INTERACTSH_MODE=off` for a clean no-op), the send side now registers each
 embedded payload with context, and the missing receive side exists —
 `OpAdmiral.poll_oob()` attributes callbacks to findings (enrich + confirm, or
 synthesize a blind finding) and a background poll loop drives it in the live
-path; 23 new offline tests, suite at 227. Remaining in order: **S8.2** the
-reasoning-model empty-content guard + per-task `max_tokens` (a 200 with empty
-`content` is currently a silent no-answer); **S8.3** housekeeping sweep
-(`utcnow()` deprecations, aspirational `pyproject` deps); **S8.4** first live
-hunt on an operator-authorized target (held until a target is ready); **S8.5**
-the S7.4 war-room visual smoke (during S8.4). `LOCAL_HEAVY` stays off throughout
-(Groq `qwen3.8-27b` covers heavy reasoning at $0).
+path; 23 new offline tests. **S8.2 (reasoning-model empty-content guard +
+per-task `max_tokens`) is DONE**: every stop now asks for a concrete
+task-sized budget (`TASK_MAX_TOKENS`, default 160 — clears the ~100-token
+reasoning budget), a 200 with empty `text` + `output_tokens>0` is retried
+once at 3× the budget, and a still-empty stop rotates; "all stops 200-empty"
+is surfaced to the agent flagged (`raw["empty_content"]=True`), **not** a
+`NoBudgetError` (that stays reserved for all-stops-hard-failed). 12 new
+offline tests (`tests/test_s5_router.py::TestS82EmptyContentGuard`) + a live
+probe (`scripts/s82_live_probe.py`, PASS — a real Groq `gpt-oss-120b`
+`triage_decision` returned `'CONFIRMED'` non-empty/unflagged at $0), suite at
+239. **S8.3 (housekeeping sweep) is DONE**: (a) `datetime.utcnow()` →
+timezone-aware `datetime.now(timezone.utc)` at all 4 control-plane sites
+(`core/types.py` ×2, `budget/token_tracker.py`, `compliance/egress_proxy.py`)
+— suite warnings 183 → 1; (b) `pyproject.toml` trimmed to what the control
+plane actually imports (base keeps `fastapi` — a real S7 test-time dep —
+`pydantic`, `aiohttp`, `mitmproxy`; `uvicorn`/`chromadb`/`pyyaml`+`cvss` →
+`live`/`memory`/`reporting` extras; never-imported `requests` dropped);
+(c) the mempalace `:8000` note above re-confirmed (still unconfirmed — now
+precise). Remaining in order: **S8.4** first live hunt on an
+operator-authorized target (held until a target is ready); **S8.5** the S7.4
+war-room visual smoke (during S8.4). `LOCAL_HEAVY` stays off throughout (Groq
+`qwen3.8-27b` covers heavy reasoning at $0).
 
 **Security:** API keys live only in the gitignored `.env`. (A 2026-10-15
 incident placed 4 free-tier keys in a tracked working-copy doc; they were moved

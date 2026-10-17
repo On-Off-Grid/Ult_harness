@@ -10,7 +10,7 @@ Every LLM call in the harness is metered here. The tracker:
 import logging
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 from core.types import TokenBudget, OrchestrationEvent
 
@@ -92,7 +92,8 @@ class UsageRecord:
     input_tokens: int
     output_tokens: int
     cost_usd: float
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(
+        default_factory=lambda: datetime.now(timezone.utc))
     # S5.4.6: provenance of the call (optional, backward-compatible).
     provider: str = "local"
     lane: Optional[str] = None

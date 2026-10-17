@@ -521,6 +521,7 @@ def test_provider_status_shape():
 
 from budget.providers import build_registry, discover_models, Provider  # noqa: E402
 from core.config import _clean_key  # noqa: E402
+from budget.model_router import DEFAULT_TASK_MAX_TOKENS, TASK_MAX_TOKENS  # noqa: E402
 
 
 def _gemini_provider():
@@ -658,3 +659,269 @@ def test_s5b_2026_catalog_ids_are_costed_and_hosted():
             by_model.update(p.models)
     for m in pinned:
         assert m in by_model, f"model '{m}' not hosted by any enabled provider"
+
+
+# ── S8.2 — empty-content guard + per-task max_tokens (mock-tested) ─────────
+# Failure class (S5b finding): reasoning primaries (gpt-oss-120b, nemotron
+# :free) spend ~100 tokens reasoning *before* emitting content, so a small
+# max_tokens returns a 200 with an empty body. The guard (model_router):
+#   1. every stop asks for a concrete task-sized budget (TASK_MAX_TOKENS /
+#      DEFAULT_TASK_MAX_TOKENS; an explicit caller max_tokens always wins);
+#   2. a 200 with empty text + output_tokens>0 is retried ONCE at 3x the
+#      budget on the same stop (a hard-failed retry keeps the original empty
+#      result; a successful/still-empty retry folds the original call's tokens
+#      into its usage so the ledger sees every token actually spent);
+#   3. a still-empty stop becomes a rotation signal
+#      (raw["empty_content"]=True); if EVERY stop "served 200 but empty" the
+#      last empty response is surfaced to the agent — NOT a NoBudgetError;
+#   4. "all stops hard-failed" is unchanged → NoBudgetError.
+# Consensus on an empty verdict is fail-closed (documented, not changed).
+
+def _openai_body(content, prompt_tokens=8, completion_tokens=12,
+                 model="gpt-oss-120b"):
+    """Minimal openai-compatible chat-completions body for the fakes below."""
+    return {
+        "choices": [{"message": {"content": content}}],
+        "model": model,
+        "usage": {"prompt_tokens": prompt_tokens,
+                  "completion_tokens": completion_tokens},
+    }
+
+
+def _seq_http(sequences):
+    """Stateful fake transport: per url-substring, returns scripted items in
+    call order. An item is a body (=> 200) or a (status, body) tuple. The last
+    item repeats once the list is down to one, so a stop with no scripted
+    exhaustion keeps its final answer. Records (method, url, payload) in
+    order; unmatched URLs fall back to _default_body (as make_http does)."""
+    state = {k: list(v) for k, v in sequences.items()}
+    calls = []
+
+    async def http(method, url, headers, payload, timeout=60):
+        calls.append((method, url, payload))
+        for key, seq in state.items():
+            if key in url:
+                item = seq.pop(0) if len(seq) > 1 else seq[0]
+                if isinstance(item, tuple):
+                    status, body = item
+                else:
+                    status, body = 200, item
+                return status, body
+        return 200, _default_body(method, url, payload)
+
+    http.calls = calls  # type: ignore[attr-defined]
+    return http
+
+
+class TestS82EmptyContentGuard:
+    """Gate S8.2: a 200-with-empty-content must never masquerade as a
+    success, and every stop must ask for a concrete task-sized budget."""
+
+    def test_empty_retries_once_at_larger_budget_then_succeeds(self, run_async):
+        cfg = full_cfg()
+        tracker = TokenTracker()
+        r = _mk(ModelRouter(cfg, tracker), tracker)
+        http = _seq_http({
+            "groq": [_openai_body("", completion_tokens=100),   # reasoning ate the budget
+                     _openai_body("CONFIRMED")],                # 3x-budget retry: content
+        })
+        r._http = http
+
+        resp = run_async(r.route("triage_decision", "is this finding in scope?"))
+
+        assert resp.text == "CONFIRMED"
+        assert resp.raw.get("empty_content") is None      # recovered, unflagged
+        groq = [p for (_, u, p) in http.calls if "groq" in u]
+        assert len(groq) == 2                             # 1 attempt + exactly 1 retry
+        assert groq[0]["max_tokens"] == TASK_MAX_TOKENS["triage_decision"] == 160
+        assert groq[1]["max_tokens"] == 480               # 3x the task budget
+        # Ledger: one billed outcome carrying BOTH real calls' tokens.
+        per = tracker.get_wing_summary()["per_provider"]
+        assert per["groq"]["calls"] == 1
+        assert per["groq"]["output_tokens"] == 100 + 12   # empty call + retry
+
+    def test_still_empty_after_retry_rotates_to_next_stop(self, run_async):
+        cfg = full_cfg()
+        r = _mk(ModelRouter(cfg, TokenTracker()), None)
+        http = _seq_http({
+            "groq": [_openai_body("", completion_tokens=100),
+                     _openai_body("", completion_tokens=150)],  # still empty on retry
+        })
+        r._http = http
+
+        resp = run_async(r.route("scope_interpret", "scope: *.example.com"))
+
+        # A stop empty on BOTH attempts is a rotation signal.
+        assert resp.provider == "openrouter"
+        assert resp.text == "CLOUD-OK"
+        assert resp.raw.get("empty_content") is None
+        groq = [p for (_, u, p) in http.calls if "groq" in u]
+        assert len(groq) == 2                             # attempt + retry, no third
+        assert groq[0]["max_tokens"] == 160
+        assert groq[1]["max_tokens"] == 480
+
+    def test_all_stops_empty_surfaces_flagged_not_no_budget(self, run_async):
+        """'Served 200 but empty' on every stop is NOT a NoBudgetError — the
+        last empty response comes back flagged so the AGENT decides."""
+        cfg = full_cfg()
+        tracker = TokenTracker()
+        r = _mk(ModelRouter(cfg, tracker), tracker)
+        http = _seq_http({
+            "groq": [_openai_body("", completion_tokens=100),
+                     _openai_body("", completion_tokens=150)],
+            "openrouter": [_openai_body("", completion_tokens=80),
+                           _openai_body("", completion_tokens=120)],
+        })
+        r._http = http
+
+        resp = run_async(r.route("scope_interpret", "scope: *.example.com"))
+
+        assert resp.text.strip() == ""
+        assert resp.raw["empty_content"] is True
+        assert resp.provider == "openrouter"              # the LAST empty stop
+        # The empty responses still billed the tokens the reasoning consumed.
+        per = tracker.get_wing_summary()["per_provider"]
+        assert per["openrouter"]["calls"] == 1
+        assert per["openrouter"]["output_tokens"] == 80 + 120
+
+    def test_hard_fail_then_empty_surfaces_flagged(self, run_async):
+        cfg = full_cfg()
+        r = _mk(ModelRouter(cfg, TokenTracker()), None)
+        http = _seq_http({
+            "groq": [(500, {"error": "down"})],                       # hard fail
+            "openrouter": [_openai_body("", completion_tokens=80),
+                           _openai_body("", completion_tokens=120)],  # empty x2
+        })
+        r._http = http
+
+        resp = run_async(r.route("scope_interpret", "scope: *.example.com"))
+
+        assert resp.raw["empty_content"] is True
+        assert resp.provider == "openrouter"
+        assert resp.text.strip() == ""
+        assert len([u for (_, u, _) in http.calls if "groq" in u]) == 1
+
+    def test_all_hard_fail_still_raises_no_budget(self, run_async):
+        """Unchanged contract: every stop HARD-failing is still a NoBudgetError
+        — the S8.2 empty path only replaces the all-EMPTY case, never 5xx."""
+        cfg = full_cfg()
+        r = _mk(ModelRouter(cfg, TokenTracker()), None)
+        http = _seq_http({
+            "groq": [(500, {"error": "down"})],
+            "openrouter": [(500, {"error": "down"})],
+        })
+        r._http = http
+
+        with pytest.raises(NoBudgetError, match="all provider stops failed"):
+            run_async(r.route("scope_interpret", "scope: *.example.com"))
+
+    def test_retry_hard_failure_keeps_empty_and_rotates(self, run_async):
+        """If the larger-budget retry itself 429s, the original empty 200 is
+        kept (flagged) and rotation proceeds — no crash, no fake answer."""
+        cfg = full_cfg()
+        r = _mk(ModelRouter(cfg, TokenTracker()), None)
+        http = _seq_http({
+            "groq": [_openai_body("", completion_tokens=100), (429, {})],
+            "openrouter": [_openai_body("OR-SERVED")],
+        })
+        r._http = http
+
+        resp = run_async(r.route("scope_interpret", "scope: *.example.com"))
+
+        assert resp.provider == "openrouter"
+        assert resp.text == "OR-SERVED"
+        assert len([u for (_, u, _) in http.calls if "groq" in u]) == 2
+
+    def test_empty_zero_output_tokens_not_retried(self, run_async):
+        """Heuristic boundary: empty text + output_tokens==0 is a genuine
+        no-answer (nothing a bigger budget would fix) — no retry, just rotate."""
+        cfg = full_cfg()
+        r = _mk(ModelRouter(cfg, TokenTracker()), None)
+        http = _seq_http({
+            "groq": [_openai_body("", completion_tokens=0)],
+        })
+        r._http = http
+
+        resp = run_async(r.route("scope_interpret", "scope: *.example.com"))
+
+        assert len([u for (_, u, _) in http.calls if "groq" in u]) == 1   # no retry
+        assert resp.provider == "openrouter"
+        assert resp.text == "CLOUD-OK"
+
+    def test_task_budget_floors_land_in_payload(self, run_async):
+        """No explicit max_tokens → a concrete task budget is stamped on the
+        wire (unmapped task → default floor, mapped task → its own floor)."""
+        r = _mk(ModelRouter(full_cfg(), TokenTracker()), None)
+        http = _seq_http({})
+        r._http = http
+        run_async(r.route("scope_interpret", "scope: *.example.com"))
+        assert http.calls[0][2]["max_tokens"] == DEFAULT_TASK_MAX_TOKENS == 160
+
+        r2 = _mk(ModelRouter(full_cfg(), TokenTracker()), None)
+        http2 = _seq_http({})
+        r2._http = http2
+        run_async(r2.route("report_draft", "draft the report"))
+        assert http2.calls[0][2]["max_tokens"] == TASK_MAX_TOKENS["report_draft"] == 2048
+
+    def test_explicit_max_tokens_wins_over_task_map(self, run_async):
+        cfg = full_cfg()
+        r = _mk(ModelRouter(cfg, TokenTracker()), None)
+        http = _seq_http({})
+        r._http = http
+        run_async(r.route("triage_decision", "is this in scope?", max_tokens=32))
+        assert http.calls[0][2]["max_tokens"] == 32
+
+    def test_local_stop_gets_task_budget_as_num_predict(self, run_async):
+        """LOCAL stops receive the same task-sized budget (num_predict)."""
+        cfg = full_cfg()
+        r = _mk(ModelRouter(cfg, TokenTracker()), None)
+        r._ollama_available = True
+        http = _seq_http({})
+        r._http = http
+
+        run_async(r.route("error_classify", "classify this error body: 500"))
+        ollama = [p for (_, u, p) in http.calls if "/api/generate" in u]
+        assert ollama[0]["options"]["num_predict"] == TASK_MAX_TOKENS["error_classify"] == 128
+
+    def test_local_empty_content_is_flagged(self, run_async, monkeypatch):
+        """A LOCAL stop serving whitespace is flagged with the SAME contract as
+        cloud stops (no retry locally — no reasoning budget to retry against),
+        and a single empty LOCAL stop is surfaced, not crashed on."""
+        cfg = full_cfg()
+        r = _mk(ModelRouter(cfg, TokenTracker()), None)
+        r._ollama_available = True
+        seen = {}
+
+        async def _empty_ollama(model, prompt, **kwargs):
+            seen.update(kwargs)
+            return LLMResponse(text="   ", model=model, tier=ModelTier.LOCAL,
+                               input_tokens=5, output_tokens=9)
+
+        monkeypatch.setattr(r, "_call_ollama", _empty_ollama)
+        resp = run_async(r.route("error_classify", "classify this error body: 500"))
+
+        assert resp.text == "   "
+        assert resp.raw["empty_content"] is True
+        assert seen["max_tokens"] == TASK_MAX_TOKENS["error_classify"] == 128
+
+    def test_consensus_on_empty_primary_is_fail_closed(self, run_async):
+        """Documented S8.2 behavior (unchanged): _verdict_confirms('') is
+        False, so an empty primary can never yield agreement=True — even with a
+        confirming partner (fail-closed)."""
+        cfg = full_cfg()
+        r = _mk(ModelRouter(cfg, TokenTracker()), None)
+        http = _seq_http({
+            "groq": [_openai_body("", completion_tokens=100),
+                     _openai_body("", completion_tokens=150)],  # primary empty x2
+            "9999": [_openai_body("CONFIRMED: SQLi on /login")],  # partner confirms
+        })
+        r._http = http
+
+        resp = run_async(r.route("vuln_confirm", "does /login reflect the input unsanitized?"))
+
+        assert resp.text.strip() == ""
+        assert resp.raw["empty_content"] is True
+        c = resp.raw["consensus"]
+        assert c["primary_confirms"] is False
+        assert c["agree_confirms"] is True
+        assert c["agreement"] is False

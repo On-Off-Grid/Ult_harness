@@ -195,6 +195,45 @@ MODEL_ROUTING_TABLE: Dict[str, Dict[str, Any]] = {
     "screenshot_alt_text":     {"tier": "LOCAL", "model": LOCAL_LIGHT_PRIMARY},
 }
 
+# ── S8.2: per-task max_tokens sizing (the empty-content guard, at the source)
+# Reasoning-primary models (gpt-oss-120b, nemotron :free) spend ~100 tokens
+# reasoning *before* emitting content, so the default below clears that
+# budget instead of returning a 200 with an empty body. Short-verdict tasks
+# get explicit floors (they are one-line answers, not reasoning traces) and
+# the long narrative/report tasks get generous single-call budgets.
+# An explicit max_tokens passed to route() always wins over this map.
+DEFAULT_TASK_MAX_TOKENS = 160
+TASK_MAX_TOKENS: Dict[str, int] = {
+    # Short-verdict tasks — explicit floors (S8.2). triage_decision sits on a
+    # reasoning-primary (G120), so its floor still clears the ~100-token
+    # reasoning budget; the two LOCAL-primary verdicts do not need that much.
+    "triage_decision":   160,
+    "dom_xss_confirm":   128,
+    "error_classify":    128,
+    # Long narrative / report tasks — one call, no rotation value in retrying
+    # smaller; give the model the room the artifact needs.
+    "chain_narrative":   1024,
+    "report_draft":      2048,
+    "report_polish":     2048,
+    "report_format":     1024,
+}
+
+
+def _task_max_tokens(task_type: str, entry: Optional[Dict[str, Any]],
+                     explicit: Optional[int]) -> int:
+    """Resolve the max_tokens budget for a task (S8.2).
+
+    Explicit caller value > per-task map > DEFAULT_TASK_MAX_TOKENS. Always
+    returns a positive int so every stop asks for a concrete budget (a
+    None budget means "provider default", which is what produced the
+    200-with-empty-content failure class in S5b)."""
+    if explicit:
+        return int(explicit)
+    if entry is not None and task_type in TASK_MAX_TOKENS:
+        return TASK_MAX_TOKENS[task_type]
+    return DEFAULT_TASK_MAX_TOKENS
+
+
 # ── Fallback chain per tier (up-only; PAID_PREMIUM is terminal) ───────────
 FALLBACK_CHAIN: Dict[ModelTier, List[ModelTier]] = {
     ModelTier.LOCAL:        [ModelTier.LOCAL_HEAVY, ModelTier.PAID_FREE, ModelTier.PAID_PREMIUM],
@@ -521,17 +560,38 @@ class ModelRouter:
             self._scrub_reroutes += 1
 
         system = kwargs.get("system")
-        max_tokens = kwargs.get("max_tokens")
+        # S8.2: per-task budget floor — the empty-content guard at the source.
+        # A None budget is what let reasoning primaries 200 with an empty body;
+        # every stop now asks for a concrete (task-sized) budget.
+        max_tokens = _task_max_tokens(task_type, entry, kwargs.get("max_tokens"))
 
         response: Optional[LLMResponse] = None
         stop_tier = tier
+        last_empty: Optional[LLMResponse] = None
         for stop_tier, stop_model in stops:
-            response = await self._serve_stop(
+            candidate = await self._serve_stop(
                 stop_tier, stop_model, prompt, kwargs,
                 system=system, max_tokens=max_tokens,
             )
-            if response is not None:
-                break
+            if candidate is None:
+                continue
+            if candidate.raw.get("empty_content"):
+                # S8.2: the stop served a 200 but its content was empty (and
+                # its one larger-budget retry was too). Remember it, then keep
+                # rotating — another stop may actually answer.
+                last_empty = candidate
+                continue
+            response = candidate
+            break
+
+        if response is None and last_empty is not None:
+            # S8.2: "served 200 but empty" — no stop hard-failed, but none
+            # produced content either. Return the LAST empty response, flagged
+            # (raw["empty_content"]=True) so the AGENT decides, not a crash
+            # and not a fake success. Billing below still records the tokens
+            # the empty responses consumed (reasoning did happen).
+            response = last_empty
+            stop_tier = response.tier
 
         if response is None:
             raise NoBudgetError(
@@ -575,17 +635,31 @@ class ModelRouter:
     ) -> Optional[LLMResponse]:
         """Try to serve one (tier, model) stop. Returns an LLMResponse on success,
         None when the stop has no usable provider (caller rotates). Never raises
-        for a single-provider failure — those are rotation signals."""
+        for a single-provider failure — those are rotation signals.
+
+        S8.2: a 200 with empty content is retried once at a larger budget
+        before being returned; a still-empty response comes back flagged
+        (``raw["empty_content"]=True``) so route() can rotate and, if every
+        stop is empty, surface it to the agent."""
         if stop_tier is ModelTier.LOCAL:
             if not self._ollama_available:
                 return None
             try:
                 # _call_ollama is the monkeypatch seam S3 relies on, so LOCAL
                 # stops always route through it (not the generic adapter).
-                return await self._call_ollama(stop_model, prompt, **kwargs)
+                # S8.2: LOCAL gets the task-sized budget too (num_predict), so
+                # short tasks stop mid-thought instead of rambling.
+                response = await self._call_ollama(
+                    stop_model, prompt, max_tokens=max_tokens, **kwargs,
+                )
             except (ProviderUnavailable, RateLimited, aiohttp.ClientError, OSError) as exc:
                 logger.warning("ollama stop failed (%s) — rotating", exc)
                 return None
+            if not (response.text or "").strip():
+                # No reasoning budget to retry against locally — flag it so the
+                # same route() rotation/surface logic applies to LOCAL stops.
+                response.raw["empty_content"] = True
+            return response
 
         if stop_tier is ModelTier.LOCAL_HEAVY and not self._local_heavy_available:
             return None
@@ -611,6 +685,14 @@ class ModelRouter:
         except (aiohttp.ClientError, OSError) as exc:
             logger.warning("provider %s network error (%s) — rotating", provider.name, exc)
             return None
+
+        # S8.2: empty-content guard — a 200 whose reasoning phase ate the whole
+        # budget gets one larger-budget retry before it is flagged for rotation.
+        result = await self._maybe_retry_empty_stop(
+            provider, model, prompt, system, max_tokens, result,
+        )
+        # Elapsed includes the retry's wall time (when one happened) so the
+        # LOCAL_HEAVY GPU-hour meter below is not undercounted.
         elapsed = time.monotonic() - started
 
         response = LLMResponse(
@@ -623,10 +705,82 @@ class ModelRouter:
             provider=result.provider,
             lane=provider.lane.value,
         )
+        if not (response.text or "").strip():
+            # The provider DID serve (200) — the content is just empty. Flag it
+            # so route() rotates (and, if every stop is like this, returns it
+            # to the agent) instead of treating a no-answer as a success.
+            response.raw["empty_content"] = True
         # S5.4.6: meter LOCAL_HEAVY GPU-hours from the call's wall time.
         if provider.name == "local_heavy" and self.tracker is not None:
             self.tracker.record_gpu_hours(elapsed / 3600.0)
         return response
+
+    async def _maybe_retry_empty_stop(
+        self,
+        provider: Provider,
+        model: str,
+        prompt: str,
+        system: Optional[str],
+        max_tokens: Optional[int],
+        result: Any,
+    ) -> Any:
+        """S8.2: retry one empty-content stop at a larger budget, once.
+
+        The failure class (S5b finding): reasoning-primary models
+        (``openai/gpt-oss-120b`` on Groq, the nemotron ``:free`` models) spend
+        ~100 tokens reasoning before emitting ``content``. With a small budget
+        the API returns **200 with empty text** and ``output_tokens > 0`` —
+        the reasoning ate the whole allotment. Heuristic: empty text +
+        ``output_tokens > 0`` => the budget was too small, so retry this same
+        stop once at ``max_tokens * 3`` (a 160 budget becomes 480 — enough for
+        the reasoning trace plus a verdict).
+
+        Never raises: a retry that hard-fails keeps the original (empty)
+        result and lets the caller's rotation decide; a retry that succeeds or
+        is still empty returns the retry's result with the original call's
+        token usage folded in (both were real API calls — the ledger must see
+        every token spent, S5.4.6).
+        """
+        if (result.text or "").strip():
+            return result
+        if (result.output_tokens or 0) <= 0:
+            # Genuinely empty (no reasoning trace): nothing a bigger budget
+            # would fix here — the agent gets the flagged empty response.
+            return result
+        retry_budget = int((max_tokens or DEFAULT_TASK_MAX_TOKENS) * 3)
+        logger.warning(
+            "empty-content 200 from %s/%s (%d output tokens, budget %s) — "
+            "retrying once at max_tokens=%d",
+            provider.name, model, result.output_tokens or 0,
+            max_tokens, retry_budget,
+        )
+        try:
+            retried = await chat(provider, model, prompt, system=system,
+                                 max_tokens=retry_budget, http=self._http)
+        except (RateLimited, ProviderUnavailable,
+                aiohttp.ClientError, OSError) as exc:
+            logger.warning(
+                "empty-content retry failed on %s/%s (%s) — keeping the "
+                "empty result, caller rotates", provider.name, model, exc,
+            )
+            return result
+        # Both the original and the retry were real API calls: fold the
+        # original (empty) call's consumption into the retry's usage so the
+        # per-provider ledger (S5.4.6) sees every token actually spent —
+        # whether the retry recovered or came back empty.
+        retried.input_tokens += result.input_tokens or 0
+        retried.output_tokens += result.output_tokens or 0
+        if (retried.text or "").strip():
+            logger.info(
+                "empty-content retry succeeded on %s/%s (budget %d)",
+                provider.name, model, retry_budget,
+            )
+            return retried
+        logger.warning(
+            "empty-content retry still empty on %s/%s (budget %d) — caller "
+            "rotates to the next stop", provider.name, model, retry_budget,
+        )
+        return retried
 
     # ── Backend implementations ──────────────────────────────────────────
 
@@ -674,7 +828,13 @@ class ModelRouter:
     ) -> None:
         """Run the second-opinion model for a consensus task and record the
         agreement in ``response.raw["consensus"]``. Fail-open: if no second model
-        is available, the primary verdict stands (agreement=None)."""
+        is available, the primary verdict stands (agreement=None).
+
+        S8.2 note (behavior unchanged): the consensus is fail-CLOSED against
+        empty content — ``_verdict_confirms("")`` is False, so an empty primary
+        or empty partner text can only ever yield agreement=False (never a
+        phantom confirmation). An S8.2 ``empty_content`` primary therefore
+        fails the consensus rather than passing it."""
         agree_text: Optional[str] = None
         agree_model: Optional[str] = None
         agree_in = 0

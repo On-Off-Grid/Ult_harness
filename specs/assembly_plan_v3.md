@@ -1,7 +1,7 @@
 # ULT_HARNESS — Surgical Restart Plan v3.0
 
 **Date:** 2026-10-15
-**Status:** APPROVED — executing. S0 (salvage), S1 (component restoration), S2 (control-plane trust audit), S3 (the brain), **S4 (end-to-end integration)** complete 2026-10-15/16 (commits `394bc29`, `c95b967`, S2 in `198004c`+ / `cc48240`, S3 in the following commit, S4 in the subsequent commit). S4 delivered: component-side wiring 4.6–4.12 (all env-gated + fail-open, recorded in `patches/local-tweaks.md` §7) + the S4.1–S4.3 E2E gates (`tests/test_s4_e2e.py`, 5 tests incl. a live-Ollama round-trip). **S6 (documentation & handoff)** complete 2026-10-16: `OPERATIONS.md` (canonical entry point — a fresh session runs the S4.1 dry-run from it alone), `pyproject.toml` → 3.0.0, `CREDITS.md` pin commits, STORM-HUNT archived to `docs/reference/storm-hunt/`, umbrella `Vibe_coded/README.md` row synced; `model_routing_guide.md` + the v2.1.2 Qwen-spec routing section carry supersession banners (the full guide rewrite is the S5 deliverable). **S5 (model-router redesign) is DONE** — S5a (build, keyless, mock-tested) + **S5b (live per-provider verification, PASS 2026-10-17, post the operator's $10 OpenRouter top-up)**: 5/6 enabled providers returned a live 200 (logged per provider/tier/lane) + paid overflow resolved; `github_models` reported UNVERIFIABLE (upstream retired 2026-07-30, not a code defect). Key rotation was *closed*: the 4 free-tier keys live only in gitignored `.env`. S7 (war-room dashboard) is DONE (the S7.4 browser-visual smoke is the one remaining manual step). S2 verdict: all 9 areas GREEN after 6 in-place bug fixes (F1–F6) — see `docs/trust_audit.md`. Test suite: **227 tests** in `tests/` (154 S2–S4 baseline + 25 S5 gates + 20 S7 + 5 S5b regression + 23 S8.1 OOB). **Phase S8** — "from verified to operational" (real OOB correlation + the reasoning-model empty-content guard + housekeeping, then the first live hunt) — is added at the end of this plan as the next phase; the control plane is proven to *run* but not yet to *hunt*.
+**Status:** APPROVED — executing. S0 (salvage), S1 (component restoration), S2 (control-plane trust audit), S3 (the brain), **S4 (end-to-end integration)** complete 2026-10-15/16 (commits `394bc29`, `c95b967`, S2 in `198004c`+ / `cc48240`, S3 in the following commit, S4 in the subsequent commit). S4 delivered: component-side wiring 4.6–4.12 (all env-gated + fail-open, recorded in `patches/local-tweaks.md` §7) + the S4.1–S4.3 E2E gates (`tests/test_s4_e2e.py`, 5 tests incl. a live-Ollama round-trip). **S6 (documentation & handoff)** complete 2026-10-16: `OPERATIONS.md` (canonical entry point — a fresh session runs the S4.1 dry-run from it alone), `pyproject.toml` → 3.0.0, `CREDITS.md` pin commits, STORM-HUNT archived to `docs/reference/storm-hunt/`, umbrella `Vibe_coded/README.md` row synced; `model_routing_guide.md` + the v2.1.2 Qwen-spec routing section carry supersession banners (the full guide rewrite is the S5 deliverable). **S5 (model-router redesign) is DONE** — S5a (build, keyless, mock-tested) + **S5b (live per-provider verification, PASS 2026-10-17, post the operator's $10 OpenRouter top-up)**: 5/6 enabled providers returned a live 200 (logged per provider/tier/lane) + paid overflow resolved; `github_models` reported UNVERIFIABLE (upstream retired 2026-07-30, not a code defect). Key rotation was *closed*: the 4 free-tier keys live only in gitignored `.env`. S7 (war-room dashboard) is DONE (the S7.4 browser-visual smoke is the one remaining manual step). S2 verdict: all 9 areas GREEN after 6 in-place bug fixes (F1–F6) — see `docs/trust_audit.md`. Test suite: **239 tests** in `tests/` (154 S2–S4 baseline + 25 S5 gates + 20 S7 + 5 S5b regression + 23 S8.1 OOB + 12 S8.2 empty-content guard). **Phase S8** — "from verified to operational" (real OOB correlation + the reasoning-model empty-content guard + housekeeping, then the first live hunt) — is added at the end of this plan as the next phase; **S8.1 (OOB correlation), S8.2 (empty-content guard), and S8.3 (housekeeping) are DONE; S8.4 (first live hunt) + S8.5 (visual smoke) remain**. The control plane is proven to *run* but not yet to *hunt*.
 **Workspace (canonical):** `/home/souhail/Desktop/Desktop/PORTFOLIO/Vibe_coded/Ult_harness`
 **Supersedes:** `specs/assembly_plan.md` (v2.1.1, mojibaked), `specs/implementation_guide.md` (v2.1.1 snapshot, mojibaked)
 **Predecessor (still valid):** `bug_bounty_harness_design_v2_1.md`, v2.1.2 specs, `harness_gap_bridging_specification_v2_1_2.md`, `progress_report.md`
@@ -276,11 +276,15 @@ Subscription comparison (why no $20/mo Claude/ChatGPT/Kimi): consumer subscripti
 > deploy scripts are prepped but not spun up). The live hunt (S8.4) is held until
 > the operator has an authorized, in-scope target.
 
-**Status (2026-10-17): S8.1 DONE; S8.2 in progress.** Order: S8.1 → S8.2 → S8.3
-(all code + offline tests, no live dependency) → S8.4 (live, needs a target) →
-S8.5 (manual smoke during S8.4). Suite at **227 passed** (204 baseline + 23 S8.1
-OOB gate tests in `tests/test_s8_oob.py`; the five S2 OOB tests were updated in
-place to drive the real Interactsh lifecycle through a mocked `http` seam).
+**Status (2026-10-17): S8.1, S8.2, S8.3 all DONE.** Order:
+S8.1 → S8.2 → S8.3 (all code + offline tests, no live dependency) → S8.4
+(live, needs a target) → S8.5 (manual smoke during S8.4). Suite at **239
+passed** (204 baseline + 23 S8.1 OOB gate tests in `tests/test_s8_oob.py` +
+12 S8.2 empty-content guard tests in `tests/test_s5_router.py`; the five S2 OOB
+tests were updated in place to drive the real Interactsh lifecycle through a
+mocked `http` seam). S8.3 added no tests — it is a deprecation sweep + a
+`pyproject.toml` dep trim; the suite drops from 183 to 1 warning and stays
+239-green.
 
 ### S8.1 — OOB correlation (Interactsh) — the highest-value fix
 
@@ -327,6 +331,31 @@ RCE never confirm out-of-band (S2 finding N3).
 
 ### S8.2 — Reasoning-model empty-content guard + per-task `max_tokens`
 
+> **Status (2026-10-17): DONE — Gate S8.2 green offline + live probe PASS.**
+> `budget/model_router.py`: `DEFAULT_TASK_MAX_TOKENS = 160` + a
+> `TASK_MAX_TOKENS` floor map (`triage_decision` 160 — clears the ~100-token
+> reasoning budget; `dom_xss_confirm` / `error_classify` 128; the long
+> narrative/report tasks 1024–2048). `route()` resolves every stop's budget
+> from `explicit kwarg > map > default` (a `None` budget no longer reaches the
+> wire — it was the root cause). `_serve_stop`'s cloud path: a 200 whose text is
+> empty with `output_tokens > 0` (the reasoning ate the allotment) is retried
+> **once at 3× the budget** on the same stop; a hard-failed retry keeps the
+> original empty result; a successful or still-empty retry folds the original
+> call's tokens into its usage so the per-provider ledger (S5.4.6) sees every
+> token actually spent. A still-empty stop is returned flagged
+> (`raw["empty_content"]=True`) as a **rotation signal**; `route()` remembers the
+> last empty stop and keeps rotating, and only when *every* stop served
+> 200-empty does it surface the last flagged empty response to the agent —
+> **not** a `NoBudgetError` (which is reserved, unchanged, for "all stops
+> hard-failed"). LOCAL stops get the same task-sized budget (`num_predict`) and
+> the same empty flag (no retry — no reasoning budget locally). Consensus is
+> fail-closed against empty text (documented in `_apply_consensus`, unchanged).
+> 12 gate tests in `tests/test_s5_router.py::TestS82EmptyContentGuard`; live
+> probe `scripts/s82_live_probe.py` PASS — a real Groq `openai/gpt-oss-120b`
+> `triage_decision` with **no explicit `max_tokens`** returned `'CONFIRMED'`
+> (non-empty, unflagged, 106 in / 105 out, $0) — the S5b failure class is
+> closed end-to-end.
+
 S5b finding: `openai/gpt-oss-120b` (Groq primary) and the nemotron `:free` models
 spend ~100 tokens reasoning before emitting `content`; a small `max_tokens`
 (8/32) returns **200 with empty `text`**, which `route()` treats as a normal
@@ -351,6 +380,26 @@ success → a silent no-answer that the agent cannot distinguish from a real res
   verdict (`'CONFIRMED'`). Offline tests + one live probe.
 
 ### S8.3 — Housekeeping sweep (cheap, optional, bundled)
+
+> **Status (2026-10-17): DONE.** (a) `datetime.utcnow()` swept across the
+> control plane → timezone-aware `datetime.now(timezone.utc)` at 4 sites
+> (`core/types.py` ×2, `budget/token_tracker.py`, `compliance/egress_proxy.py`)
+> — the `default_factory` sites wrapped as `lambda:` (a bare
+> `datetime.now(timezone.utc)` reference would freeze one shared timestamp at
+> class-definition time). Suite warnings 183 → 1 (the survivor is the unrelated
+> httpx2/Starlette note); no consumer depended on the naive isoformat.
+> (b) `pyproject.toml` trimmed (S2 finding N2): base = what the control plane
+> actually imports (`pydantic`, `aiohttp`, `mitmproxy`, and `fastapi` — kept in
+> BASE, not moved: the S7 war-room tests import it at test-run time, so the
+> S2 note that listed it as aspirational predates S7); `uvicorn` → `live`
+> extra, `chromadb` → `memory` extra (touched only via mempalace's deferred
+> `ChromaBackend` import), `pyyaml` + `cvss` → `reporting` extra, `requests`
+> dropped (zero imports anywhere in the tree). (c) The mempalace `:8000` note
+> in `OPERATIONS.md` re-confirmed — still NOT confirmed, now precise: the
+> control plane *defaults* `mempalace_url` to `:8000` and specialists
+> `POST /search` there, while mempalace's shipped HTTP surfaces are the daemon
+> (`/health`, `/jobs`, `/shutdown`, ephemeral port) and the MCP JSON-RPC
+> server (`/healthz`, `/statusz`).
 
 - `datetime.utcnow()` → `datetime.now(timezone.utc)` across the control plane
   (S2 finding N4; Python 3.13 deprecation warnings).
@@ -378,8 +427,9 @@ success → a silent no-answer that the agent cannot distinguish from a real res
   kill-switch actually stops dispatch. Closes the last S7 manual gate.
 
 **Gate S8 (overall):** S8.1 + S8.2 green offline (mocked Interactsh callback
-confirms a finding; empty-content stop rotates/retries; no network needed);
-S8.3 suite still green (target 204+ passed); S8.4 a live authorized hunt produces
+confirms a finding; empty-content stop rotates/retries; no network needed) —
+met 2026-10-17 (S8.2 additionally live-probed PASS at $0); S8.3 housekeeping
+done, suite green (239 passed, 1 warning); S8.4 a live authorized hunt produces
 a real report + intact evidence trail within budget; S8.5 the operator confirms
 the war room live. `LOCAL_HEAVY` remains off throughout — heavy reasoning is
 Groq `qwen3.8-27b` ($0) until the operator confirms GPU hours (S5.5/S0.7).
