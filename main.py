@@ -54,6 +54,11 @@ from reporting.writers import ReportGateError  # noqa: E402
 
 logger = logging.getLogger("harness.main")
 
+# S8.1: how often the live hunt polls Interactsh for OOB callbacks. Short
+# enough that a blind SSRF/RCE confirmation lands promptly; cheap enough to
+# leave running for the whole hunt (one POST /polling per interval).
+OOB_POLL_INTERVAL_SECONDS = 15.0
+
 SCOPED_PLATFORMS = (
     Platform.HACKERONE,
     Platform.BUGCROWD,
@@ -338,6 +343,24 @@ def _spawn_egress_proxy(config: HarnessConfig, scope: TargetScope,
     return subprocess.Popen(cmd, env=env)
 
 
+async def _oob_poll_loop(admiral, interval: float = OOB_POLL_INTERVAL_SECONDS) -> None:
+    """S8.1: the receive side — repeatedly run ``admiral.poll_oob()`` for the
+    life of the hunt. A callback is the proof for blind SSRF/RCE/XXE and
+    nothing else in the live path reads Interactsh, so this loop is what
+    turns embedded OOB payloads into confirmed findings. One loop per hunt;
+    a bad iteration never kills the hunt (poll_oob is already fail-open,
+    this is belt and braces)."""
+    while True:
+        try:
+            await asyncio.sleep(interval)
+            await admiral.poll_oob()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning("oob poll loop iteration failed — continuing",
+                           exc_info=True)
+
+
 async def _run_live(args) -> int:
     import uvicorn
     from orchestrator.admiral import create_app
@@ -347,12 +370,19 @@ async def _run_live(args) -> int:
     graph = build_graph(config, scope)
 
     proxy_proc = _spawn_egress_proxy(config, scope, args.workspace)
+    oob = graph.get("oob_engine")   # S8.1: bound before try so finally can always close it
+    oob_poll_task = None
     try:
         # Router health check (raises NoBudgetError if no backend at all).
         await graph["model_router"].startup_health_check()
         # S5: reconcile each enabled provider's model catalog (fail-open).
         # Live mode only — the dry-run path stays fully offline.
         await graph["model_router"].startup_discovery()
+
+        # S8.1: open the hunt-wide OOB session (Interactsh). Fail-open — a
+        # dead Interactsh (or a disabled mode) never blocks the live hunt.
+        if oob is not None and oob.enabled:
+            await oob.init()
 
         # Auth bootstrap (only if the profile carries personas).
         profile_path = Path(args.workspace) / args.program / "platform_profile.json"
@@ -366,10 +396,28 @@ async def _run_live(args) -> int:
                 logger.info("session manager bootstrapped")
 
         app = create_app(graph["admiral"])
+        # S8.1: start the OOB receive-side poller for the life of the hunt.
+        if oob is not None and oob.enabled:
+            oob_poll_task = asyncio.create_task(_oob_poll_loop(graph["admiral"]))
+            logger.info("oob poll loop started (every "
+                        f"{OOB_POLL_INTERVAL_SECONDS:.0f}s)")
         server_config = uvicorn.Config(app, host="127.0.0.1", port=config.api_port, log_level="warning")
         server = uvicorn.Server(server_config)
         await server.serve()
     finally:
+        # S8.1: stop the OOB poller, then deregister the session (fail-open,
+        # idempotent).
+        if oob_poll_task is not None:
+            oob_poll_task.cancel()
+            try:
+                await oob_poll_task
+            except BaseException:
+                pass
+        if oob is not None:
+            try:
+                await oob.close()
+            except Exception:
+                pass
         if proxy_proc is not None:
             proxy_proc.terminate()
             try:

@@ -63,6 +63,7 @@ from core.types import (
 from budget.model_router import ModelRouter, NoBudgetError
 from budget.token_tracker import TokenTracker
 from compliance.scope_gate import ScopeGate
+from compliance.oob_engine import OOBEngine
 from agents.dual_session_tester import DualSessionTester
 from reporting.writers import ReportResult, ReportWriter
 from triage.noise_filter import DropReason, Finding as NoiseFinding, NoiseFilter
@@ -122,6 +123,7 @@ class OpAdmiral:
         state_machine: Optional[TriageStateMachine] = None,
         report_writer: Optional[ReportWriter] = None,
         session_manager: Any = None,
+        oob_engine: Any = None,
         kill_switch_threshold: int = DEFAULT_KILL_SWITCH_THRESHOLD,
     ):
         self.config = config
@@ -134,6 +136,8 @@ class OpAdmiral:
         self.state_machine = state_machine or TriageStateMachine(self.event_bus)
         self.report_writer = report_writer or ReportWriter(config.workspace_dir)
         self.session_manager = session_manager
+        self.oob_engine = oob_engine           # S8.1: hunt-wide Interactsh session
+        self.oob_confirmed: int = 0           # S8.1: findings confirmed via OOB
         self.dual_session_tester = DualSessionTester(proxy_url=f"http://127.0.0.1:{config.egress_proxy_port}")
 
         # ── Hunt state ──
@@ -357,6 +361,134 @@ class OpAdmiral:
         )
 
     # ══════════════════════════════════════════════════════════════════════
+    # OOB correlation (S8.1) — the receive side
+    # ══════════════════════════════════════════════════════════════════════
+
+    @property
+    def oob_enabled(self) -> bool:
+        """A live OOB session is wired into this hunt (Interactsh, S8.1)."""
+        eng = self.oob_engine
+        return bool(eng is not None and getattr(eng, "enabled", False))
+
+    async def poll_oob(self) -> int:
+        """Receive-side OOB poll (S8.1): fetch new Interactsh callbacks and
+        confirm the findings whose embedded payloads they hit.
+
+        The callback IS the proof — no LLM in the loop. Fail-open: disabled /
+        unregistered / dead Interactsh -> 0; never raises, never breaks a hunt
+        (the S4.3 invariant). Returns the number of findings confirmed by
+        this poll.
+        """
+        if not self.oob_enabled:
+            return 0
+        try:
+            new = await self.oob_engine.poll_callbacks()
+        except Exception as exc:  # a dead OOB must never break the hunt
+            logger.warning(f"oob poll failed (fail-open): {exc}")
+            return 0
+        confirmed = 0
+        for cb in new or []:
+            reg = self.oob_engine.match(cb)
+            if not reg:
+                continue
+            if await self._oob_confirm(reg, cb):
+                confirmed += 1
+        return confirmed
+
+    async def _oob_confirm(self, reg: Dict[str, Any], cb: Any) -> bool:
+        """Attribute one claimed callback to a finding: enrich + confirm an
+        existing finding that embedded this payload, or synthesize a blind-OOB
+        finding when the local checks produced nothing."""
+        payload = reg.get("url", "")
+        context = reg.get("context") or {}
+        endpoint = str(context.get("endpoint", ""))
+        category = str(context.get("category", "ssrf"))
+        cb_desc = f"{cb.type} on {cb.callback}"
+
+        # 1) Existing finding carrying this payload -> enrich + confirm.
+        if payload:
+            for fid, f in self.findings.items():
+                ev = getattr(f, "evidence", None)
+                if ev is None and isinstance(f, dict):
+                    ev = f.get("evidence")
+                if not isinstance(ev, dict):
+                    continue
+                if ev.get("oob_payload") == payload or payload in str(ev.get("payload", "")):
+                    ev["oob_confirmed"] = True
+                    ev["oob_callback"] = cb_desc
+                    ev["oob_raw"] = cb.raw
+                    self.oob_confirmed += 1
+                    await self._oob_transition(self.task_by_finding.get(fid), cb_desc)
+                    await self._publish_oob_event(context, fid, payload, cb)
+                    return True
+
+        # 2) Nothing local -> synthesize the blind finding and ingest it.
+        label = {"ssrf": "Blind SSRF", "rce": "Blind RCE", "xxe": "Blind XXE"}.get(
+            category, category.upper()
+        )
+        finding = NoiseFinding(
+            finding_id=f"oob_{uuid.uuid4().hex[:8]}",
+            title=f"{label} confirmed via out-of-band callback",
+            description=(
+                f"OOB interaction ({cb.type}) on {cb.callback} for a callback "
+                f"URL embedded at {endpoint} — the target itself initiated an "
+                f"external request to the harness Interactsh domain."
+            ),
+            vuln_category=category,
+            endpoint=endpoint,
+            evidence={
+                "oob_payload": payload,
+                "oob_confirmed": True,
+                "oob_callback": cb_desc,
+                "oob_raw": cb.raw,
+            },
+            confidence=0.9,
+            metadata={"specialist": "oob_correlate", "oob_confirmed": True},
+        )
+        result = await self.ingest_finding(finding)
+        if result.action != "ingested":
+            return False
+        self.oob_confirmed += 1
+        await self._oob_transition(self.task_by_finding.get(finding.finding_id), cb_desc)
+        await self._publish_oob_event(context, finding.finding_id, payload, cb)
+        return True
+
+    async def _oob_transition(self, task_id: Optional[str], cb_desc: str) -> None:
+        """VALIDATING -> CONFIRMED (an OOB callback is machine-grade proof).
+        Unknown tasks and terminal states are left alone."""
+        if not task_id or task_id not in self.tasks:
+            return
+        task = self.tasks[task_id]
+        if task.status != VulnStatus.VALIDATING:
+            return
+        try:
+            await self.state_machine.transition(
+                task, VulnStatus.CONFIRMED, evidence={"oob": cb_desc},
+            )
+        except InvalidTransitionError:
+            pass
+
+    async def _publish_oob_event(self, context: Dict[str, Any], finding_id: str,
+                                 payload: str, cb: Any) -> None:
+        try:
+            await self.event_bus.publish(
+                "triage",
+                OrchestrationEvent(
+                    event_type="oob_confirmed",
+                    correlation_id=str(context.get("correlation_id", "-")),
+                    source_component="oob_correlate",
+                    payload={
+                        "finding_id": finding_id,
+                        "oob_payload": payload,
+                        "callback_type": cb.type,
+                        "callback": cb.callback,
+                    },
+                ),
+            )
+        except Exception:  # event publishing must never break correlation
+            pass
+
+    # ══════════════════════════════════════════════════════════════════════
     # Operator approval (workflow stage 7)
     # ══════════════════════════════════════════════════════════════════════
 
@@ -556,6 +688,13 @@ class OpAdmiral:
             },
             "routing": self.model_router.provider_status(),
             "lanes": {"scrub_reroutes": self.model_router.scrub_reroutes},
+            "oob": {
+                "enabled": self.oob_enabled,
+                "session_registered": bool(
+                    self.oob_engine and getattr(self.oob_engine, "initialized", False)
+                ),
+                "callbacks_confirmed": self.oob_confirmed,
+            },
             "reports_written": len(self.reports),
         }
 
@@ -630,6 +769,13 @@ def build_graph(
     bus = event_bus or InMemoryEventBus()
     tracker = TokenTracker(bus)
     router = ModelRouter(config, tracker)
+    # S8.1: hunt-wide shared OOB session (Interactsh). Fail-open: a disabled
+    # mode or a dead Interactsh never blocks the hunt.
+    oob = OOBEngine(
+        mode=config.interactsh_mode,
+        interactsh_url=config.interactsh_url,
+        api_token=config.interactsh_api_token,
+    )
     admiral = OpAdmiral(
         config=config,
         scope=scope,
@@ -637,6 +783,7 @@ def build_graph(
         token_tracker=tracker,
         model_router=router,
         report_writer=ReportWriter(config.workspace_dir),
+        oob_engine=oob,
     )
     return {
         "config": config,
@@ -646,6 +793,7 @@ def build_graph(
         "scope_gate": admiral.scope_gate,
         "admiral": admiral,
         "report_writer": admiral.report_writer,
+        "oob_engine": oob,
     }
 
 

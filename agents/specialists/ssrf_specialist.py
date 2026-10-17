@@ -31,8 +31,13 @@ class SSRFSpecialist(OOBMixin, ISpecialist):
         if await self.check_false_positive(target):
             return findings
 
-        # Generate unique OOB target url
-        oob_payload = self.embed_oob_payload()
+        # Generate unique OOB target url (S8.1: context lets the admiral's
+        # receive-side poll attribute a callback back to this endpoint).
+        oob_payload = self.embed_oob_payload(context={
+            "endpoint": target,
+            "category": self.category.value,
+            "correlation_id": correlation_id,
+        })
 
         # Try both OOB URL and standard loopback URLs
         payloads = [
@@ -57,6 +62,7 @@ class SSRFSpecialist(OOBMixin, ISpecialist):
                                 endpoint=target,
                                 evidence={
                                     "payload": p,
+                                    "oob_payload": oob_payload,
                                     "url": test_url,
                                     "response": body[:200],
                                 },
@@ -73,6 +79,7 @@ class SSRFSpecialist(OOBMixin, ISpecialist):
                                 endpoint=target,
                                 evidence={
                                     "payload": p,
+                                    "oob_payload": oob_payload,
                                     "url": test_url,
                                 },
                                 confidence=0.6,

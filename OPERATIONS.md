@@ -8,7 +8,7 @@ it, and what is still open.**
 > **One-sentence status (2026-10-17):** Phases S0–S4, **S5 (a+b)**, and **S7**
 > (the operator war-room dashboard on `:8001`) are complete and committed — the
 > control plane is built, audited (S2), integrated end-to-end (S4), has a
-> **204-test suite all green**, and its **S5b live provider verification PASSED
+> **227-test suite all green**, and its **S5b live provider verification PASSED
 > post top-up** (5/6 enabled providers returned a live 200 logged per
 > provider/tier/lane + paid overflow resolved; `github_models` reported
 > UNVERIFIABLE because the upstream service was retired 2026-07-30).
@@ -246,28 +246,40 @@ Be explicit about these — do not paper over them.
    Every mempalace call from the components is **best-effort fail-open** (a
    dead palace never breaks a hunt). Local JSONL stays authoritative. Gap
    documented in `patches/local-tweaks.md` §7.
-4. **OOB interaction correlation is a skeleton.** `OOBEngine.poll_callbacks`
-   returns `[]`; no Interactsh API integration (S2 finding N3). Shape/contract
-   verified; the real OOB correlate is post-S4 work.
+4. ~~**OOB interaction correlation is a skeleton.**~~ **CLOSED (S8.1, 2026-10-17).**
+   `OOBEngine` now speaks real Interactsh (register / poll / deregister) with an
+   injectable `http` seam and fail-open degradation; the send side registers
+   each embedded payload with context (endpoint/category) and the admiral's
+   `poll_oob()` receive side (a live-path poll loop in `main.py`) matches
+   callbacks back to findings — enriching an existing finding or synthesizing a
+   blind SSRF/RCE/XXE finding, then VALIDATING → CONFIRMED with no LLM in the
+   loop. Config: `INTERACTSH_MODE` (`public` | `selfhosted` | `off`),
+   `INTERACTSH_URL`, optional `INTERACTSH_API_TOKEN`. Verified offline in
+   `tests/test_s8_oob.py` (227-test suite). A live (non-mocked) Interactsh
+   session is exercised for the first time during the S8.4 hunt.
 5. **Minor housekeeping.** `datetime.utcnow()` deprecation warnings on Python
    3.13 (S2 finding N4) — cosmetic, sweep is deferred. `pyproject.toml` still
    lists aspirational deps (`fastapi`, `chromadb`, `cvss`) the control plane
    does not import at test/dry-run time (S2 finding N2); they are only pulled
    in live/ingest paths.
 
-**Next phase — S8 (planned, not started).** S0–S7 are done and the control
+**S8 is in progress — S8.1 done (2026-10-17).** S0–S7 are done and the control
 plane is proven to *run*; it is not yet proven to *hunt*. S8 closes the three
 findings a real hunt would trip over, then runs the first live hunt. Detail in
-`specs/assembly_plan_v3.md` §S8.1–S8.5. In order: **S8.1** OOB correlation via
-Interactsh (the send side already embeds OOB URLs, but `poll_callbacks` is a
-skeleton that nothing calls — blind SSRF/XSS never confirm); **S8.2** the
+`specs/assembly_plan_v3.md` §S8.1–S8.5. **S8.1 (OOB correlation via
+Interactsh) is DONE**: real register/poll/deregister lifecycle in
+`compliance/oob_engine.py` (injectable `http` seam, fail-open,
+`INTERACTSH_MODE=off` for a clean no-op), the send side now registers each
+embedded payload with context, and the missing receive side exists —
+`OpAdmiral.poll_oob()` attributes callbacks to findings (enrich + confirm, or
+synthesize a blind finding) and a background poll loop drives it in the live
+path; 23 new offline tests, suite at 227. Remaining in order: **S8.2** the
 reasoning-model empty-content guard + per-task `max_tokens` (a 200 with empty
 `content` is currently a silent no-answer); **S8.3** housekeeping sweep
 (`utcnow()` deprecations, aspirational `pyproject` deps); **S8.4** first live
 hunt on an operator-authorized target (held until a target is ready); **S8.5**
 the S7.4 war-room visual smoke (during S8.4). `LOCAL_HEAVY` stays off throughout
-(Groq `qwen3.8-27b` covers heavy reasoning at $0). No S8 code yet — suite is at
-204 passed.
+(Groq `qwen3.8-27b` covers heavy reasoning at $0).
 
 **Security:** API keys live only in the gitignored `.env`. (A 2026-10-15
 incident placed 4 free-tier keys in a tracked working-copy doc; they were moved
@@ -292,6 +304,9 @@ OLLAMA_URL=              # default http://127.0.0.1:11434
 LOCAL_HEAVY_URL=         # set when a 27B GPU endpoint is spun up (off by default)
 LOCAL_HEAVY_API_KEY=
 LOCAL_HEAVY_HOURLY_COST=
+INTERACTSH_MODE=         # "public" | "selfhosted" | "off" (S8.1) — "off" = fail-open no-op
+INTERACTSH_URL=          # self-hosted Interactsh base (public mode uses oast.pro)
+INTERACTSH_API_TOKEN=    # optional; sent as Bearer when set
 ```
 
 The **dry-run and the whole test suite need none of these.** Only the live FREE

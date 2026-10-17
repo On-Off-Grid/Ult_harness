@@ -1,7 +1,7 @@
 # ULT_HARNESS — Surgical Restart Plan v3.0
 
 **Date:** 2026-10-15
-**Status:** APPROVED — executing. S0 (salvage), S1 (component restoration), S2 (control-plane trust audit), S3 (the brain), **S4 (end-to-end integration)** complete 2026-10-15/16 (commits `394bc29`, `c95b967`, S2 in `198004c`+ / `cc48240`, S3 in the following commit, S4 in the subsequent commit). S4 delivered: component-side wiring 4.6–4.12 (all env-gated + fail-open, recorded in `patches/local-tweaks.md` §7) + the S4.1–S4.3 E2E gates (`tests/test_s4_e2e.py`, 5 tests incl. a live-Ollama round-trip). **S6 (documentation & handoff)** complete 2026-10-16: `OPERATIONS.md` (canonical entry point — a fresh session runs the S4.1 dry-run from it alone), `pyproject.toml` → 3.0.0, `CREDITS.md` pin commits, STORM-HUNT archived to `docs/reference/storm-hunt/`, umbrella `Vibe_coded/README.md` row synced; `model_routing_guide.md` + the v2.1.2 Qwen-spec routing section carry supersession banners (the full guide rewrite is the S5 deliverable). **S5 (model-router redesign) is DONE** — S5a (build, keyless, mock-tested) + **S5b (live per-provider verification, PASS 2026-10-17, post the operator's $10 OpenRouter top-up)**: 5/6 enabled providers returned a live 200 (logged per provider/tier/lane) + paid overflow resolved; `github_models` reported UNVERIFIABLE (upstream retired 2026-07-30, not a code defect). Key rotation was *closed*: the 4 free-tier keys live only in gitignored `.env`. S7 (war-room dashboard) is DONE (the S7.4 browser-visual smoke is the one remaining manual step). S2 verdict: all 9 areas GREEN after 6 in-place bug fixes (F1–F6) — see `docs/trust_audit.md`. Test suite: **204 tests** in `tests/` (154 S2–S4 baseline + 25 S5 gates + 20 S7 + 5 S5b regression). **Phase S8** — "from verified to operational" (real OOB correlation + the reasoning-model empty-content guard + housekeeping, then the first live hunt) — is added at the end of this plan as the next phase; the control plane is proven to *run* but not yet to *hunt*.
+**Status:** APPROVED — executing. S0 (salvage), S1 (component restoration), S2 (control-plane trust audit), S3 (the brain), **S4 (end-to-end integration)** complete 2026-10-15/16 (commits `394bc29`, `c95b967`, S2 in `198004c`+ / `cc48240`, S3 in the following commit, S4 in the subsequent commit). S4 delivered: component-side wiring 4.6–4.12 (all env-gated + fail-open, recorded in `patches/local-tweaks.md` §7) + the S4.1–S4.3 E2E gates (`tests/test_s4_e2e.py`, 5 tests incl. a live-Ollama round-trip). **S6 (documentation & handoff)** complete 2026-10-16: `OPERATIONS.md` (canonical entry point — a fresh session runs the S4.1 dry-run from it alone), `pyproject.toml` → 3.0.0, `CREDITS.md` pin commits, STORM-HUNT archived to `docs/reference/storm-hunt/`, umbrella `Vibe_coded/README.md` row synced; `model_routing_guide.md` + the v2.1.2 Qwen-spec routing section carry supersession banners (the full guide rewrite is the S5 deliverable). **S5 (model-router redesign) is DONE** — S5a (build, keyless, mock-tested) + **S5b (live per-provider verification, PASS 2026-10-17, post the operator's $10 OpenRouter top-up)**: 5/6 enabled providers returned a live 200 (logged per provider/tier/lane) + paid overflow resolved; `github_models` reported UNVERIFIABLE (upstream retired 2026-07-30, not a code defect). Key rotation was *closed*: the 4 free-tier keys live only in gitignored `.env`. S7 (war-room dashboard) is DONE (the S7.4 browser-visual smoke is the one remaining manual step). S2 verdict: all 9 areas GREEN after 6 in-place bug fixes (F1–F6) — see `docs/trust_audit.md`. Test suite: **227 tests** in `tests/` (154 S2–S4 baseline + 25 S5 gates + 20 S7 + 5 S5b regression + 23 S8.1 OOB). **Phase S8** — "from verified to operational" (real OOB correlation + the reasoning-model empty-content guard + housekeeping, then the first live hunt) — is added at the end of this plan as the next phase; the control plane is proven to *run* but not yet to *hunt*.
 **Workspace (canonical):** `/home/souhail/Desktop/Desktop/PORTFOLIO/Vibe_coded/Ult_harness`
 **Supersedes:** `specs/assembly_plan.md` (v2.1.1, mojibaked), `specs/implementation_guide.md` (v2.1.1 snapshot, mojibaked)
 **Predecessor (still valid):** `bug_bounty_harness_design_v2_1.md`, v2.1.2 specs, `harness_gap_bridging_specification_v2_1_2.md`, `progress_report.md`
@@ -276,11 +276,29 @@ Subscription comparison (why no $20/mo Claude/ChatGPT/Kimi): consumer subscripti
 > deploy scripts are prepped but not spun up). The live hunt (S8.4) is held until
 > the operator has an authorized, in-scope target.
 
-**Status (2026-10-17): PLANNED — not started.** No S8 code yet; suite remains at
-204 passed. Order: S8.1 → S8.2 → S8.3 (all code + offline tests, no live
-dependency) → S8.4 (live, needs a target) → S8.5 (manual smoke during S8.4).
+**Status (2026-10-17): S8.1 DONE; S8.2 in progress.** Order: S8.1 → S8.2 → S8.3
+(all code + offline tests, no live dependency) → S8.4 (live, needs a target) →
+S8.5 (manual smoke during S8.4). Suite at **227 passed** (204 baseline + 23 S8.1
+OOB gate tests in `tests/test_s8_oob.py`; the five S2 OOB tests were updated in
+place to drive the real Interactsh lifecycle through a mocked `http` seam).
 
 ### S8.1 — OOB correlation (Interactsh) — the highest-value fix
+
+> **Status (2026-10-17): DONE — Gate S8.1 green offline.** `compliance/oob_engine.py`
+> now speaks real Interactsh (`POST /register` → `POST /polling` → `DELETE
+> /deregister`, public API on `oast.pro`, self-hosted via `INTERACTSH_URL`,
+> optional `INTERACTSH_API_TOKEN` Bearer, `INTERACTSH_MODE=off` = fail-open no-op
+> with zero network). Every embedded payload is registered with context
+> (endpoint/category/correlation_id); `OpAdmiral.poll_oob()` is the receive side —
+> a callback claims its payload at most once, then either enriches an existing
+> finding's evidence + VALIDATING→CONFIRMED, or synthesizes a blind
+> SSRF/RCE/XXE finding through `ingest_finding()`, and publishes
+> `oob_correlate` events on `triage`. The live path (`main.py::_run_live`)
+> opens the session at startup, runs a background poll loop
+> (`OOB_POLL_INTERVAL_SECONDS`, default 15s), and deregisters in teardown —
+> fail-open at every step (S4.3 invariant). 23 gate tests in
+> `tests/test_s8_oob.py`; a live (non-mocked) Interactsh session is exercised for
+> the first time during the S8.4 hunt.
 
 The send side already works (specialists embed `OOBEngine.generate_payload()` URLs,
 `agents/specialist_base.py:81`), but `compliance/oob_engine.py::poll_callbacks`

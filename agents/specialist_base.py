@@ -75,10 +75,14 @@ class OOBMixin:
         super().__init__(*args, **kwargs)
         self.oob_engine = oob_engine
 
-    def embed_oob_payload(self) -> str:
-        """Generate a unique OOB endpoint for triggering external callback validation."""
+    def embed_oob_payload(self, context: Optional[Dict[str, Any]] = None) -> str:
+        """Generate a unique OOB callback URL for triggering external callback
+        validation. ``context`` (endpoint / category / correlation_id) is
+        registered with the shared hunt OOB session so the receive side
+        (``OpAdmiral.poll_oob``) can attribute a callback back to the finding
+        that fired it (S8.1)."""
         if self.oob_engine:
-            return self.oob_engine.generate_payload()
+            return self.oob_engine.generate_payload(context)
         return "http://interact.oast.me/placeholder_oob"
 
 

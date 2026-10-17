@@ -62,8 +62,9 @@ def _env_float(name: str, default: float) -> float:
 @dataclass
 class HarnessConfig:
     dry_run: bool = False
-    interactsh_mode: str = "public"       # "public" | "selfhosted"
+    interactsh_mode: str = "public"       # "public" | "selfhosted" | "off" (S8.1: "off" = fail-open)
     interactsh_url: str = "https://interactsh.com"
+    interactsh_api_token: Optional[str] = None   # optional; sent as Bearer when set
     egress_proxy_port: int = 8080
     war_room_port: int = 3333             # (S7) separate-war-room option; S7 serves same-origin on api_port
     api_port: int = 8001                  # FIX A-1: admiral on 8001, not 8000
@@ -103,6 +104,7 @@ class HarnessConfig:
             dry_run=_env_flag("HARNESS_DRY_RUN"),
             interactsh_mode=os.getenv("INTERACTSH_MODE", "public"),
             interactsh_url=os.getenv("INTERACTSH_URL", "https://interactsh.com"),
+            interactsh_api_token=_clean_key(os.getenv("INTERACTSH_API_TOKEN")),
             egress_proxy_port=_env_int("EGRESS_PROXY_PORT", 8080),
             war_room_port=_env_int("WAR_ROOM_PORT", 3333),
             api_port=_env_int("HARNESS_API_PORT", 8001),

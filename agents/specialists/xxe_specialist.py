@@ -31,7 +31,11 @@ class XXESpecialist(OOBMixin, ISpecialist):
         if await self.check_false_positive(target):
             return findings
 
-        oob_payload = self.embed_oob_payload()
+        oob_payload = self.embed_oob_payload(context={
+            "endpoint": target,
+            "category": self.category.value,
+            "correlation_id": correlation_id,
+        })
 
         payloads = [
             f"""<?xml version="1.0" encoding="ISO-8859-1"?>
@@ -65,6 +69,7 @@ class XXESpecialist(OOBMixin, ISpecialist):
                                 endpoint=target,
                                 evidence={
                                     "payload": p,
+                                    "oob_payload": oob_payload,
                                     "response": body[:200],
                                 },
                                 confidence=0.95,

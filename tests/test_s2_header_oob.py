@@ -79,17 +79,49 @@ def test_header_injector_from_profile_json_file(tmp_path):
     assert hi._min_interval == pytest.approx(1.0 / 2.5)
 
 
-# ── OOBEngine ───────────────────────────────────────────────────────────
+# ── OOBEngine (S8.1: real Interactsh lifecycle behind the http seam) ─────
 
-def test_oob_init_generates_session_id():
-    eng = OOBEngine(mode="public", base_domain="oast.me")
+def _mock_interactsh(data: list | None = None, register: dict | None = None):
+    """Stand-in for the Interactsh HTTP API behind the engine's ``http`` seam.
+
+    Records every ``(method, url)`` call and serves canned register/polling
+    bodies — no network in tests. ``state["data"]`` is mutable, so a poll can
+    be fed callbacks after the engine starts."""
+    state: dict = {"data": list(data or [])}
+    calls: list = []
+
+    async def http(method, url, headers, payload, timeout=15):
+        calls.append((method, url))
+        if method == "POST" and url.endswith("/register"):
+            return 200, register or {
+                "collaborator": "deadbeef00",
+                "collaborator_token": "tok1234567890abc",
+            }
+        if method == "POST" and url.endswith("/polling"):
+            return 200, {"data": state["data"]}
+        if method == "DELETE" and url.endswith("/deregister"):
+            return 200, {}
+        return 404, {}
+
+    http.calls = calls            # type: ignore[attr-defined]
+    http.state = state            # type: ignore[attr-defined]
+    return http
+
+
+def test_oob_init_registers_session():
+    http = _mock_interactsh()
+    eng = OOBEngine(mode="public", base_domain="oast.me", http=http)
     assert eng.session_id is None
     asyncio.run(eng.init())
     assert eng.session_id and len(eng.session_id) > 0
+    assert eng.initialized is True
+    assert eng.callback_domain == "tok1234567890abc.oast.me"
+    assert ("POST", "https://oast.pro/register") in http.calls
 
 
 def test_oob_generate_payload_shape():
-    eng = OOBEngine(mode="public", base_domain="oast.me")
+    http = _mock_interactsh()
+    eng = OOBEngine(mode="public", base_domain="oast.me", http=http)
     asyncio.run(eng.init())
     payload = eng.generate_payload()
     # Shape: http://<token>.<session>.<domain>/
@@ -107,19 +139,24 @@ def test_oob_generate_payload_shape():
 
 def test_oob_generate_payload_without_init_still_works():
     # Defensive: generate_payload() self-initializes if init() wasn't awaited.
-    eng = OOBEngine(mode="public", base_domain="oast.fun")
+    http = _mock_interactsh()
+    eng = OOBEngine(mode="public", base_domain="oast.fun", http=http)
     payload = eng.generate_payload()
     assert payload.endswith(".oast.fun/")
+    assert http.calls == []   # no network attempted on the send side
 
 
 def test_oob_poll_and_close():
-    eng = OOBEngine(mode="public", base_domain="oast.me")
+    http = _mock_interactsh()
+    eng = OOBEngine(mode="public", base_domain="oast.me", http=http)
 
     async def scenario():
         await eng.init()
-        assert await eng.poll_callbacks() == []   # skeleton returns no callbacks
+        assert await eng.poll_callbacks() == []   # no interactions yet
+        assert ("POST", "https://oast.pro/polling") in http.calls
         await eng.close()
         assert eng._closed is True
+        assert ("DELETE", "https://oast.pro/deregister") in http.calls
         # After close, polling yields nothing.
         assert await eng.poll_callbacks() == []
 
