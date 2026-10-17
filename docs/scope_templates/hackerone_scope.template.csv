@@ -1,0 +1,4 @@
+asset_identifier,asset_type,eligible_for_bounty
+*.acme-corp.com,URL,true
+api.acme-corp.com,URL,true
+staging.acme-corp.com,URL,false

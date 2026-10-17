@@ -38,6 +38,10 @@ There is no autonomous one-click runner; the operator drives.
    - `GROQ_API_KEY` — the $0 workhorse (`gpt-oss-120b` primary,
      `qwen/qwen3.8-27b` heavy reasoning).
    - `OPENROUTER_API_KEY` — the $10-top-up `:free` failover pool.
+   - `INTIGRITI_API_KEY` (optional) — used **only** by
+     `scripts/fetch_intigriti_scope.py` (Intigriti scope export via the
+     beta Researcher API). The control plane itself never calls platform
+     APIs — this key serves your manual scope fetch, not `main.py`.
    - `INTERACTSH_MODE=public` (default) — or `selfhosted` + `INTERACTSH_URL`
      (+ optional `INTERACTSH_API_TOKEN`), or `off` (blind findings will then
      **never** auto-confirm — a deliberate choice, not a failure).
@@ -54,55 +58,120 @@ There is no autonomous one-click runner; the operator drives.
    The test suite runs on system python (aiohttp + mitmproxy are
    system-installed; only fastapi/uvicorn live in the venv).
 
-## 2. Scope intake (the part platforms without APIs make manual)
+## 2. Scope intake (per platform — templates in `docs/scope_templates/`)
 
-`init` needs a scope file in one of four shapes:
+`init` needs a scope file in one of four shapes. Templates (with a
+field-mapping README) live in `docs/scope_templates/`:
 
-- **HackerOne** — program-scope CSV (columns `asset_identifier`, `asset_type`,
-  `eligible_for_bounty`) → `--format hackerone_csv` (`.csv` auto-inferred).
-- **Bugcrowd** — program-scope JSON
-  `{"targets":[{"name","category","in_scope"}]}` → `--format bugcrowd_json`
-  (`.json` auto-inferred).
-- **YesWeHack / Intigriti** — no API key exists and the importers are stubs
-  (`NotImplementedError` in `compliance/scope_importer.py`) → do the manual
-  browser path:
+| Platform | Scope source | Feed `--format` |
+|---|---|---|
+| HackerOne | Program-scope CSV export (`asset_identifier,asset_type,eligible_for_bounty`) | `hackerone_csv` (`.csv` auto) |
+| Bugcrowd | Program-scope JSON `{"targets":[…]}` | `bugcrowd_json` (`.json` auto) |
+| Intigriti | **Researcher API** — `scripts/fetch_intigriti_scope.py` (or manual fallback, §2b) | `bugcrowd_json` |
+| YesWeHack | **Manual browser** (no API) | `bugcrowd_json` |
 
-  **Manual browser scope fetch (YesWeHack et al.):**
+**Creating a scope file from scratch** (any platform):
 
-  1. In your live browser (logged in), open the program's scope/rules page.
-  2. Copy every in-scope asset (URLs, wildcards, CIDRs) into a
-     Bugcrowd-shaped JSON file, e.g. `scope_ywh.json`:
+1. Copy the right template:
+   `cp docs/scope_templates/bugcrowd_scope.template.json scope.json`
+2. Replace the example `targets` with the program's real scope — and
+   **transcribe the out-of-scope list too** (`"in_scope": false`): the
+   egress gate blocks on those rules and logs every block with a reason to
+   `workspace/<p>/logs/egress_proxy.jsonl` (your proof of discipline).
+3. Field mapping (details in the template README): `name` starting with `*.`
+   → WILDCARD, anything else → EXACT; `category` → description; extra keys
+   (like the template's `_comment` block) are ignored by the importer.
+4. Run `init` with the **platform tag matching the program** — it sets the
+   attribution header (`X-YesWeHack-User`, `X-Intigriti-Researcher`, …):
 
-         {"targets": [
-           {"name": "*.victim.fr",     "category": "URL", "in_scope": true},
-           {"name": "api.victim.fr",   "category": "URL", "in_scope": true},
-           {"name": "staging.victim.fr","category": "URL", "in_scope": false}
-         ]}
+       .venv/bin/python main.py init --platform yeswehack \
+           --program <handle> --scope-file scope.json \
+           --format bugcrowd_json --researcher <you> --workspace ./workspace
 
-     Entries starting `*.` parse as WILDCARD; everything else as EXACT. Keep
-     the platform's out-of-scope list too — the egress gate blocks on it.
-  3. Feed it in as Bugcrowd-shaped, but tag the **platform** correctly so the
-     attribution header is right:
+5. **Verify the counts against the program page** — `init` prints the
+   in/out-of-scope rule counts; if they disagree, stop and fix the file
+   before trusting anything downstream. Then check on disk:
+   `workspace/<p>/scope.json` (the rules the gate enforces), `headers.txt`
+   (attribution export), `platform_profile.json`.
+6. **CIDR / IP range / regex in the program's scope?** The importers only
+   auto-assign exact/wildcard — hand-edit `workspace/<p>/scope.json` after
+   `init` (`"match_type": "cidr"` / `"regex"`, plus the `rate_limit_rps` /
+   `max_concurrent` pacing knobs; see
+   `docs/scope_templates/scope.template.canonical.json`).
 
-         .venv/bin/python main.py init --platform yeswehack \
-             --program victim-fr --scope-file scope_ywh.json \
-             --format bugcrowd_json --researcher yourhandle \
-             --workspace ./workspace
+### 2a. YesWeHack — manual browser scope fetch (no API exists)
 
-     (`--platform yeswehack` sets the `X-YesWeHack-User` attribution header;
-     the JSON shape stays Bugcrowd-compatible. `--platform intigriti` works
-     the same way for Intigriti.)
+1. In your live browser (logged in), open the program's scope/rules page.
+2. Copy every in-scope asset (URLs, wildcards, IP ranges) **and** the
+   out-of-scope list into a Bugcrowd-shaped `scope.json`:
 
-`init` prints the rule counts — **verify them against the program page before
-trusting anything downstream**, then check on disk:
+       {"targets": [
+         {"name": "*.victim.fr",     "category": "URL", "in_scope": true},
+         {"name": "api.victim.fr",   "category": "URL", "in_scope": true},
+         {"name": "staging.victim.fr","category": "URL", "in_scope": false}
+       ]}
 
-- `workspace/<program>/scope.json` — the rules the egress gate enforces
-- `workspace/<program>/headers.txt` — attribution export
-- `workspace/<program>/platform_profile.json`
+   Also check the program's eligibility flags — anything excluded
+   (staging, no-bounty domains, VDP-only assets) goes `"in_scope": false`.
+3. `init --platform yeswehack --format bugcrowd_json` as in step 4 above —
+   the platform tag (not the format) is what sets the
+   `X-YesWeHack-User` header.
+4. **Re-verify against the program page after init** — the manual copy is
+   the one step where human error enters.
+
+### 2b. Intigriti — API path (key in `.env`)
+
+Intigriti's beta Researcher API covers scope end-to-end via the script
+(probe-verified live 2026-10-17; docs at
+`intigriti-researcher-api.readme.io/reference`):
+
+    .venv/bin/python scripts/fetch_intigriti_scope.py list     # your programs: handle + id
+    .venv/bin/python scripts/fetch_intigriti_scope.py <handle> -o scope.json
+    .venv/bin/python main.py init --platform intigriti --program <handle> \
+        --scope-file scope.json --format bugcrowd_json \
+        --researcher <you> --workspace ./workspace
+
+- `list` → `GET /v1/programs` (Bearer `INTIGRITI_API_KEY` from `.env`);
+  fetch → `GET /v1/programs/{id}` (domains + rules of engagement). Rate
+  limit: 600 GETs / 5 min.
+- Tier mapping (the script's **editorial** call — verify against the program
+  page): tier `No Bounty` → `"in_scope": false`; URL/Wildcard/API/Web →
+  wildcard if `*.` else exact; Subnet/IP → `cidr`; Custom/Regex → `regex`;
+  **mobile apps (iOS/Android bundles) are dropped from the scope file** —
+  they're not egress-able through mitmproxy — and listed under
+  `_mobile_apps_manual_only` for manual testing.
+- The export prints whether RoE text is present. The script does not
+  enforce RoE — **you** do (read it before the live run).
+- The script's only third-party dep is `requests` (already in the repo
+  `.venv`; it is *not* a control-plane dep — run it with
+  `.venv/bin/python`, not system python).
+- **Fallback:** API 403 (terms changed → re-accept in the Intigriti UI, or
+  rate-limited → wait) / 404 (beta drift) → do the §2a manual path with
+  `--platform intigriti`.
 
 Rehearse first: dry-run the whole graph against a scratch workspace (zero
 packets, zero cost; a report must land in `ws/<program>/reports/` with a $0
 budget — the exact recipe is OPERATIONS §3.2).
+
+## 2.5 What the report will say about severity (initial classifier)
+
+There is **no severity setting** — and it is **not** critical/exceptional by
+default. `reporting/taxonomy.py` applies a static, category-driven *initial*
+CVSS; the report's "Severity (initial)" line is a triage aid, and the final
+severity call is yours (workflow stage 7 — the war-room confirm/reject is
+where it lands).
+
+| Finding category | Initial CVSS 3.1 vector | Band |
+|---|---|---|
+| SQLi, RCE | `AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H` (9.7) | **Critical** |
+| SSRF | `AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N` | **High** |
+| All other 12 categories (XSS, IDOR, LFI, XXE, JWT, …) | `AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:L/A:N` | **Medium** |
+
+Practical effect: a plain XSS reports **Medium (initial)** — don't be
+surprised, and don't "fix" the classifier to make reports look scarier or
+safer. Refine the vector **per finding** at submit time (impact statement in
+the report, final severity in the platform UI). The `cvss` lib (the
+`reporting` extra) is available if you want real score computation later.
 
 ## 3. The live run (step by step)
 
@@ -161,6 +230,8 @@ if you need it.
 | Dry-run shows non-zero budget | Regression — a dry-run makes no real LLM calls | Fail the hunt setup and report it. Dry-run budget must be $0. |
 | An old `ghp_` PAT in the shell env | Once printed in session logs; shell env overrides `.env` (dotenv `override=False`) | Rotate it at GitHub, then `unset GITHUB_TOKEN` / scrub the shell profile. |
 | Scope rule count off after `init` | Copy-paste error in the manual scope file (or a stray space in the wildcard) | Re-check `scope.json` against the program page. Wildcards need the exact `*.` prefix. |
+| Intigriti API 403 from the fetch script | Terms of engagement changed (re-accept in the Intigriti UI) **or** the 600-GETs/5-min rate limit | Re-accept ToE in the UI and retry; if rate-limited, wait ~5 min. Persistent 403/404 (beta API drift) → use the §2a manual browser path instead. |
+| `INTIGRITI_API_KEY` set but "not used" | By design — the control plane never calls platform APIs | The key only serves `scripts/fetch_intigriti_scope.py` (your scope export). If you don't hunt Intigriti, ignore it. It is never sent anywhere except `api.intigriti.com`. |
 | Component works fine standalone but ignores the harness | `HARNESS_*` env vars not exported (component-side wiring is env-gated + fail-open by design) | Run the component **under** `main.py run` (it exports them), or export `HARNESS_*` yourself for a manually-started component (see `patches/local-tweaks.md` §7). |
 
 ## 5. Running it to full potential (the levers)

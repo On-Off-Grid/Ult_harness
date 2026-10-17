@@ -341,10 +341,14 @@ LOCAL_HEAVY_HOURLY_COST=
 INTERACTSH_MODE=         # "public" | "selfhosted" | "off" (S8.1) — "off" = fail-open no-op
 INTERACTSH_URL=          # self-hosted Interactsh base (public mode uses oast.pro)
 INTERACTSH_API_TOKEN=    # optional; sent as Bearer when set
+INTIGRITI_API_KEY=       # (S8.4 prep, 2026-10-17) Intigriti Researcher API (beta) —
+                         # used ONLY by scripts/fetch_intigriti_scope.py (operator
+                         # tooling); the control plane never calls platform APIs.
 ```
 
 The **dry-run and the whole test suite need none of these.** Only the live FREE
-lanes (S5) and a live `LOCAL_HEAVY` GPU need keys.
+lanes (S5), a live `LOCAL_HEAVY` GPU, and (optionally) the Intigriti scope
+fetch script need keys.
 
 > **`.env` hygiene (S5b finding, 2026-10-17):** placeholder values
 > (`ghp_REPLACE_ME`, empty, `sk-or-xxxx…`) are normalized to *unset* by
@@ -364,7 +368,8 @@ lanes (S5) and a live `LOCAL_HEAVY` GPU need keys.
 |---|---|
 | `OPERATIONS.md` | **This file.** The entry point. |
 | `specs/assembly_plan_v3.md` | The approved plan (S0–S7) + gate definitions + current status. |
-| `docs/hunt_cheatsheet.md` | **The hunt-day field manual** — step-by-step live run + pitfall/error table (incl. the manual browser scope path for platforms without APIs, e.g. YesWeHack). Read it on hunt day. |
+| `docs/hunt_cheatsheet.md` | **The hunt-day field manual** — step-by-step live run + pitfall/error table (incl. the Intigriti API path and the manual browser scope path for API-less platforms, e.g. YesWeHack). Read it on hunt day. |
+| `docs/scope_templates/` | Scope-file templates + field-mapping README (HackerOne CSV, Bugcrowd/YesWeHack JSON, canonical file with all four match types). |
 | `docs/archive/legacy-v2/` | Archived v2.1.x doc corpus (10 files, incl. the phase-by-phase `progress_report.md`) — historical record, superseded; see its `README.md`. |
 | `docs/trust_audit.md` | S2 verification verdicts + the F1–F6 fixes + findings. |
 | `docs/provisioning.md` | Accounts, keys, hardware, and the S0.7 AMD check. |

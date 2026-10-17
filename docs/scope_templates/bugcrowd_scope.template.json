@@ -1,0 +1,17 @@
+{
+  "_comment": [
+    "Bugcrowd-shaped scope template — the canonical FEED for `main.py init`.",
+    "Works with --format bugcrowd_json for ANY platform (HackerOne, Bugcrowd,",
+    "YesWeHack, Intigriti): copy the program's scope into 'targets', pass the",
+    "right --platform for the attribution header. Field mapping in README.md.",
+    "Rules: 'name' starting with '*. ' -> wildcard; anything else -> exact.",
+    "  'category' becomes the rule description; 'in_scope' routes the list.",
+    "  Extra keys (like these _comment lines) are ignored by the importer."
+  ],
+  "targets": [
+    {"name": "*.acme-corp.com",     "category": "URL", "in_scope": true},
+    {"name": "api.acme-corp.com",   "category": "URL", "in_scope": true},
+    {"name": "staging.acme-corp.com","category": "URL", "in_scope": false},
+    {"name": "192.0.2.0/24",        "category": "IP Range (hand-edited canonical file)", "in_scope": true}
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "_comment": [
+    "CANONICAL scope file — the shape of workspace/<program>/scope.json that",
+    "`main.py run` reloads (main.py::_load_workspace_scope). Use this when a",
+    "program has CIDRs, IP ranges, or regex patterns: the importers only",
+    "auto-assign exact/wildcard, but the egress gate supports all four",
+    "match types below (core.types.ScopeMatchType). Either hand-edit",
+    "workspace/<p>/scope.json AFTER init, or build this file by hand and",
+    "recreate the workspace dirs (logs/ reports/ evidence/).",
+    "match_type values: exact | wildcard | cidr | regex",
+    "rate_limit_rps (default 10.0) and max_concurrent (default 5) are the",
+    "component-side pacing knobs for this program."
+  ],
+  "program_handle": "acme-corp",
+  "platform": "bugcrowd",
+  "in_scope": [
+    {"pattern": "app.acme-corp.com",       "match_type": "exact",    "description": "main web app"},
+    {"pattern": "*.acme-corp.com",         "match_type": "wildcard", "description": "all subdomains"},
+    {"pattern": "192.0.2.0/24",            "match_type": "cidr",     "description": "staging IP range"},
+    {"pattern": "^api[0-9]+\\.acme-corp\\.com$", "match_type": "regex", "description": "sharded API hosts"}
+  ],
+  "out_of_scope": [
+    {"pattern": "staging.acme-corp.com",   "match_type": "exact",    "description": "explicitly excluded by program"}
+  ],
+  "rate_limit_rps": 10.0,
+  "max_concurrent": 5
+}
