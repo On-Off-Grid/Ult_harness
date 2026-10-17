@@ -370,6 +370,7 @@ fetch script need keys.
 | `specs/assembly_plan_v3.md` | The approved plan (S0–S7) + gate definitions + current status. |
 | `docs/hunt_cheatsheet.md` | **The hunt-day field manual** — step-by-step live run + pitfall/error table (incl. the Intigriti API path and the manual browser scope path for API-less platforms, e.g. YesWeHack). Read it on hunt day. |
 | `docs/scope_templates/` | Scope-file templates + field-mapping README (HackerOne CSV, Bugcrowd/YesWeHack JSON, canonical file with all four match types). |
+| `docs/examples/datacamp_intigriti.md` | Verified copy-paste setup for one real program (DataCamp, Intigriti): scope fetch → dry-run → init → live run → teardown. |
 | `docs/archive/legacy-v2/` | Archived v2.1.x doc corpus (10 files, incl. the phase-by-phase `progress_report.md`) — historical record, superseded; see its `README.md`. |
 | `docs/trust_audit.md` | S2 verification verdicts + the F1–F6 fixes + findings. |
 | `docs/provisioning.md` | Accounts, keys, hardware, and the S0.7 AMD check. |

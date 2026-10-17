@@ -94,9 +94,25 @@ def _match_type(dtype: str, endpoint: str) -> str | None:
     return "exact"
 
 
+def _list_all(key: str) -> list:
+    """Page through GET /v1/programs (server default page = 50, max 500/page).
+
+    Without this, accounts with >50 programs only ever see the first page —
+    the rest are invisible to both `list` and handle resolution.
+    """
+    records, offset = [], 0
+    while True:
+        data = _get(key, f"/v1/programs?limit=500&offset={offset}")
+        batch = data.get("records", [])
+        records.extend(batch)
+        if len(records) >= data.get("maxCount", len(records)) or not batch:
+            return records
+        offset += len(batch)
+
+
 def cmd_list(key: str, search: str | None, limit: int) -> int:
-    data = _get(key, "/v1/programs")
-    records = data.get("records", [])
+    records = _list_all(key)
+    total = len(records)
     if search:
         s = search.lower()
         records = [p for p in records
@@ -107,7 +123,7 @@ def cmd_list(key: str, search: str | None, limit: int) -> int:
         ptype = (p.get("type") or {}).get("value", "?")
         print(f"{p.get('handle'):<28} {status:<8} {ptype:<14} "
               f"{p.get('name', '')[:50]}  (id={p.get('id')})")
-    print(f"\n{min(len(records), limit)} of {data.get('maxCount', '?')} program(s)"
+    print(f"\n{min(len(records), limit)} of {total} program(s)"
           + (f" matching {search!r}" if search else ""))
     return 0
 
@@ -120,8 +136,7 @@ def _resolve_id(key: str, ident: str) -> str:
     """Accept a program handle or a program GUID; return the GUID."""
     if _UUID.match(ident):
         return ident
-    data = _get(key, "/v1/programs")
-    for p in data.get("records", []):
+    for p in _list_all(key):
         if p.get("handle", "").lower() == ident.lower():
             return p["id"]
     sys.exit(f"program {ident!r} not found — run `list --search {ident}` "

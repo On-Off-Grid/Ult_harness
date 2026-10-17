@@ -4,6 +4,10 @@ The on-hunt-day guide: how to run the harness to full potential and how to
 read the failure modes. Canonical state lives in `OPERATIONS.md`; the plan in
 `specs/assembly_plan_v3.md`; this file is the field manual.
 
+Want the concrete copy-paste version for one real program?
+`docs/examples/datacamp_intigriti.md` — a verified step-by-step setup for
+DataCamp (Intigriti), from scope fetch to teardown.
+
 Read order on hunt day: §1 preflight → §2 scope intake → §3 live run →
 §5 levers (while it runs) → §4 only when something is wrong.
 
@@ -148,6 +152,8 @@ Intigriti's beta Researcher API covers scope end-to-end via the script
 - **Fallback:** API 403 (terms changed → re-accept in the Intigriti UI, or
   rate-limited → wait) / 404 (beta drift) → do the §2a manual path with
   `--platform intigriti`.
+- **Full worked example** (Intigriti end-to-end, verified commands):
+  `docs/examples/datacamp_intigriti.md`.
 
 Rehearse first: dry-run the whole graph against a scratch workspace (zero
 packets, zero cost; a report must land in `ws/<program>/reports/` with a $0
@@ -194,8 +200,8 @@ the report, final severity in the platform UI). The `cvss` lib (the
 6. Starts the OOB poll loop (every 15 s → `admiral.poll_oob()`).
 
 Teardown on Ctrl-C is ordered: OOB poll loop → Interactsh deregister →
-mitmdump. `main.py stop --program <handle>` prints the manual teardown order
-if you need it.
+mitmdump. `main.py stop` (takes no arguments) prints the manual teardown
+order if you need it.
 
 **While it runs:**
 
