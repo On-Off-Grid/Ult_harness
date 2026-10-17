@@ -7,7 +7,7 @@ anything else raises ReportGateError. This enforces workflow stage 7
 in the state machine IS the approval gate).
 
 Output: workspace/<wing>/reports/<task_id>_<category>.md (platform-ready
-Markdown), per workflow_overview.md stage 8.
+Markdown), per workflow_overview.md stage 8 (archived: docs/archive/legacy-v2/).
 """
 
 import logging

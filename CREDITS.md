@@ -3,7 +3,7 @@
 This repository contains only the harness **control-plane** (Python packages,
 specs, guides, scripts). The design targets a polyglot workspace of
 third-party agent components that integrate with it (see
-`bug_bounty_harness_design_v2_1.md`). Those components are **not vendored
+`docs/archive/legacy-v2/bug_bounty_harness_design_v2_1.md`). Those components are **not vendored
 here** — fetch them into the repo root with:
 
 ```sh

@@ -1,8 +1,10 @@
 # reporting/taxonomy.py
 """Vulnerability taxonomy — VRT / CWE / CVSS 3.1 classification.
 
-Implements the TaxonomyMapper from harness_gap_bridging_specification_v2_1_2.md
-§3.1, adapted to the verified `core.types.VulnCategory` enum (16 categories).
+Implements the TaxonomyMapper from
+harness_gap_bridging_specification_v2_1_2.md §3.1 (archived:
+docs/archive/legacy-v2/), adapted to the verified `core.types.VulnCategory`
+enum (16 categories).
 
 These mappings are a triage *aid* for report drafting — the final severity
 call always belongs to the operator (workflow stage 7).

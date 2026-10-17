@@ -69,7 +69,7 @@ re-apply this list in order.
 
 ## 6. Phase 4B tweaks 4.6–4.12 — NEVER WERE DONE (not lost)
 
-`progress_report.md` §4 marks 4.6 (adhd engine FP query), 4.7 (cbb agent router),
+`progress_report.md` §4 (archived: `docs/archive/legacy-v2/`) marks 4.6 (adhd engine FP query), 4.7 (cbb agent router),
 4.8 (cbb engine proxy), 4.9 (cbb brain CL4R1T4S), 4.10 (cbb memory redirect),
 4.11 (cbb scope_checker deprecation), 4.12 (jsleak proxy/-json) all as **❌ TODO**
 in the original build. There is nothing to "re-apply" — they are outstanding

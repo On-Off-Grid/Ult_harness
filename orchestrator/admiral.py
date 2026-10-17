@@ -1,7 +1,8 @@
 # orchestrator/admiral.py
 """OpAdmiral — THE BRAIN of the harness (S3.1).
 
-Central coordinator per workflow_overview.md §2: receives tasks, dispatches
+Central coordinator per workflow_overview.md §2 (archived:
+docs/archive/legacy-v2/): receives tasks, dispatches
 specialists, enforces scope, tracks triage state, gates budget, writes
 reports, and keeps the memory palace fed.
 
@@ -849,7 +850,8 @@ class LLMRouteRequest(BaseModel):
 def create_app(admiral: OpAdmiral):
     """Build the REST + WebSocket surface for the admiral (port 8001).
 
-    Endpoints (workflow_overview.md §2 + gap-bridging spec §3.2, request
+    Endpoints (workflow_overview.md §2 + gap-bridging spec §3.2 — both
+    archived under docs/archive/legacy-v2/; request
     bodies matched to the verified control-plane signatures):
 
       GET  /api/v1/status              — hunt summary

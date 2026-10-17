@@ -364,7 +364,8 @@ lanes (S5) and a live `LOCAL_HEAVY` GPU need keys.
 |---|---|
 | `OPERATIONS.md` | **This file.** The entry point. |
 | `specs/assembly_plan_v3.md` | The approved plan (S0–S7) + gate definitions + current status. |
-| `progress_report.md` | Phase-by-phase narrative of what was built and why. |
+| `docs/hunt_cheatsheet.md` | **The hunt-day field manual** — step-by-step live run + pitfall/error table (incl. the manual browser scope path for platforms without APIs, e.g. YesWeHack). Read it on hunt day. |
+| `docs/archive/legacy-v2/` | Archived v2.1.x doc corpus (10 files, incl. the phase-by-phase `progress_report.md`) — historical record, superseded; see its `README.md`. |
 | `docs/trust_audit.md` | S2 verification verdicts + the F1–F6 fixes + findings. |
 | `docs/provisioning.md` | Accounts, keys, hardware, and the S0.7 AMD check. |
 | `patches/local-tweaks.md` | All local component modifications + the §7 re-apply recipe. |
