@@ -1,7 +1,7 @@
 # ULT_HARNESS — Surgical Restart Plan v3.0
 
 **Date:** 2026-10-15
-**Status:** APPROVED — executing. S0 (salvage), S1 (component restoration), S2 (control-plane trust audit), S3 (the brain), **S4 (end-to-end integration)** complete 2026-10-15/16 (commits `394bc29`, `c95b967`, S2 in `198004c`+ / `cc48240`, S3 in the following commit, S4 in the subsequent commit). S4 delivered: component-side wiring 4.6–4.12 (all env-gated + fail-open, recorded in `patches/local-tweaks.md` §7) + the S4.1–S4.3 E2E gates (`tests/test_s4_e2e.py`, 5 tests incl. a live-Ollama round-trip). **S6 (documentation & handoff)** complete 2026-10-16: `OPERATIONS.md` (canonical entry point — a fresh session runs the S4.1 dry-run from it alone), `pyproject.toml` → 3.0.0, `CREDITS.md` pin commits, STORM-HUNT archived to `docs/reference/storm-hunt/`, umbrella `Vibe_coded/README.md` row synced; `model_routing_guide.md` + the v2.1.2 Qwen-spec routing section carry supersession banners (the full guide rewrite is the S5 deliverable). **S5 (model-router redesign)** is the remaining phase — **held pending the operator's $10 OpenRouter top-up** (key rotation is *closed*: the 4 free-tier keys are in gitignored `.env` and the working-copy doc is confirmed redacted). S2 verdict: all 9 areas GREEN after 6 in-place bug fixes (F1–F6) — see `docs/trust_audit.md`. Test suite: **154 tests** in `tests/` (104 S2 + 45 S3 + 5 S4).
+**Status:** APPROVED — executing. S0 (salvage), S1 (component restoration), S2 (control-plane trust audit), S3 (the brain), **S4 (end-to-end integration)** complete 2026-10-15/16 (commits `394bc29`, `c95b967`, S2 in `198004c`+ / `cc48240`, S3 in the following commit, S4 in the subsequent commit). S4 delivered: component-side wiring 4.6–4.12 (all env-gated + fail-open, recorded in `patches/local-tweaks.md` §7) + the S4.1–S4.3 E2E gates (`tests/test_s4_e2e.py`, 5 tests incl. a live-Ollama round-trip). **S6 (documentation & handoff)** complete 2026-10-16: `OPERATIONS.md` (canonical entry point — a fresh session runs the S4.1 dry-run from it alone), `pyproject.toml` → 3.0.0, `CREDITS.md` pin commits, STORM-HUNT archived to `docs/reference/storm-hunt/`, umbrella `Vibe_coded/README.md` row synced; `model_routing_guide.md` + the v2.1.2 Qwen-spec routing section carry supersession banners (the full guide rewrite is the S5 deliverable). **S5 (model-router redesign) is DONE** — S5a (build, keyless, mock-tested) + **S5b (live per-provider verification, PASS 2026-10-17, post the operator's $10 OpenRouter top-up)**: 5/6 enabled providers returned a live 200 (logged per provider/tier/lane) + paid overflow resolved; `github_models` reported UNVERIFIABLE (upstream retired 2026-07-30, not a code defect). Key rotation was *closed*: the 4 free-tier keys live only in gitignored `.env`. S7 (war-room dashboard) is DONE (the S7.4 browser-visual smoke is the one remaining manual step). S2 verdict: all 9 areas GREEN after 6 in-place bug fixes (F1–F6) — see `docs/trust_audit.md`. Test suite: **204 tests** in `tests/` (154 S2–S4 baseline + 25 S5 gates + 20 S7 + 5 S5b regression). **Phase S8** — "from verified to operational" (real OOB correlation + the reasoning-model empty-content guard + housekeeping, then the first live hunt) — is added at the end of this plan as the next phase; the control plane is proven to *run* but not yet to *hunt*.
 **Workspace (canonical):** `/home/souhail/Desktop/Desktop/PORTFOLIO/Vibe_coded/Ult_harness`
 **Supersedes:** `specs/assembly_plan.md` (v2.1.1, mojibaked), `specs/implementation_guide.md` (v2.1.1 snapshot, mojibaked)
 **Predecessor (still valid):** `bug_bounty_harness_design_v2_1.md`, v2.1.2 specs, `harness_gap_bridging_specification_v2_1_2.md`, `progress_report.md`
@@ -258,6 +258,118 @@ Subscription comparison (why no $20/mo Claude/ChatGPT/Kimi): consumer subscripti
 - **Gate S7.4:** a visual smoke (manual) + a regression that the halt toggle's backend state and the UI's displayed state agree after a `halt` → `resume` cycle.
 
 **Gate S7 (overall):** `tests/test_s7_warroom.py` green — static serving, all read endpoints, halt/resume/confirm/reject, and the per-provider + lane views — with the same `TestClient` + mocked-registry pattern as S5 (no live keys, no network). The dashboard adds no new secrets and never renders a raw provider key (the `provider_status` feed exposes `has_key` bools only).
+
+---
+
+## Phase S8 — From verified to operational (added 2026-10-17, post S5b)
+
+> **Why this phase exists:** S0–S7 *verified* the machine (offline tests, mocked
+> live checks, a zero-cost dry-run). It has not yet *hunted* — no real target, no
+> real findings, no real evidence trail/report. Before a live hunt, three
+> findings from S2/S5b must be closed or a real hunt will silently under-report:
+> OOB confirmation is a skeleton (blind SSRF/XSS never confirms), a 200 with
+> empty `content` is a silent no-answer, and a few deprecated calls linger.
+>
+> **Sequencing (operator decisions, 2026-10-17):** build the code fixes first
+> (no target needed); OOB integrates **Interactsh**; `LOCAL_HEAVY`/GPU stays
+> **off** (Groq's free `qwen3.8-27b` covers heavy reasoning at $0; RunPod/Tailscale
+> deploy scripts are prepped but not spun up). The live hunt (S8.4) is held until
+> the operator has an authorized, in-scope target.
+
+**Status (2026-10-17): PLANNED — not started.** No S8 code yet; suite remains at
+204 passed. Order: S8.1 → S8.2 → S8.3 (all code + offline tests, no live
+dependency) → S8.4 (live, needs a target) → S8.5 (manual smoke during S8.4).
+
+### S8.1 — OOB correlation (Interactsh) — the highest-value fix
+
+The send side already works (specialists embed `OOBEngine.generate_payload()` URLs,
+`agents/specialist_base.py:81`), but `compliance/oob_engine.py::poll_callbacks`
+returns `[]` and **nothing in the hunt calls it** — so blind SSRF / blind XSS /
+RCE never confirm out-of-band (S2 finding N3).
+
+- Implement the real Interactsh lifecycle in `compliance/oob_engine.py`:
+  - `init()` → `POST /register` (obtain the collab token + a unique subdomain, e.g.
+    `*.oast.lol` / self-hosted), replacing the random-id stand-in.
+  - `poll_callbacks()` → `POST /polling` (short-poll, per Interactsh's HTTP API) →
+    map DNS/HTTP/SMTP interactions onto `OOBCallback` (shape already defined).
+  - `close()` → `DELETE /deregister`.
+  - Public vs self-hosted via the existing `interactsh_mode` / `interactsh_url`
+    config; add `INTERACTSH_API_TOKEN` support only if the deployment requires it.
+- **Injectable HTTP** (the same `http=` seam the whole router uses) so the engine
+  is mock-testable with **no network**; **fail-open** when OOB is disabled
+  (no token / mode off) → `poll_callbacks()` returns `[]` + an `oob_enabled` flag,
+  never breaks a hunt.
+- **Wire the receive side** (currently missing): a poll the orchestration loop
+  invokes so `oob_correlate` (and the blind-SSRF / blind-XSS validation tasks)
+  read back callbacks and confirm. Preserves the fail-open invariant — a dead OOB
+  never breaks a hunt (S4.3).
+- **Gate S8.1:** a mocked Interactsh returns a callback → `oob_correlate`
+  confirms the finding; with OOB disabled → clean no-op, zero network calls,
+  suite green. Re-runnable offline.
+
+### S8.2 — Reasoning-model empty-content guard + per-task `max_tokens`
+
+S5b finding: `openai/gpt-oss-120b` (Groq primary) and the nemotron `:free` models
+spend ~100 tokens reasoning before emitting `content`; a small `max_tokens`
+(8/32) returns **200 with empty `text`**, which `route()` treats as a normal
+success → a silent no-answer that the agent cannot distinguish from a real result.
+
+- In `ModelRouter._serve_stop` (`budget/model_router.py`): after a 200, if
+  `text` is empty/whitespace (heuristic: `output_tokens > 0` = the reasoning
+  budget consumed the whole allotment), **retry that stop once at a larger
+  `max_tokens`**; if still empty, treat it as a rotation signal (next stop).
+- Distinguish **"all stops hard-failed"** (→ `NoBudgetError`, behavior unchanged)
+  from **"served 200 but empty"** (→ return the last empty response with
+  `raw["empty_content"]=True` so the *agent* decides, not a crash).
+- Add a **`TASK_MAX_TOKENS`** sizing map (or per-entry `max_tokens` in
+  `MODEL_ROUTING_TABLE`) so reasoning primaries clear their ~100-token budget
+  (default ≈160) and short-verdict tasks (`triage_decision`, `dom_xss_confirm`,
+  `error_classify`) have an explicit floor. This kills the failure class at the
+  source rather than only retrying it.
+- The two-model consensus is already safe (empty partner text → "not confirmed" =
+  fail-closed) — document it; do not change it.
+- **Gate S8.2:** a mocked empty-content stop retries once at a larger budget, then
+  rotates to the next provider; a real Groq `triage_decision` returns a non-empty
+  verdict (`'CONFIRMED'`). Offline tests + one live probe.
+
+### S8.3 — Housekeeping sweep (cheap, optional, bundled)
+
+- `datetime.utcnow()` → `datetime.now(timezone.utc)` across the control plane
+  (S2 finding N4; Python 3.13 deprecation warnings).
+- Trim the aspirational `pyproject.toml` deps (`fastapi`, `chromadb`, `cvss`) to
+  what the control plane actually imports at test/dry-run time (S2 finding N2) —
+  live/ingest-only deps move to an `extras` group.
+- Re-confirm the mempalace `:8000` surface note (S2 finding N3-adjacent) stays
+  accurate in `OPERATIONS.md`.
+
+### S8.4 — First live hunt *(held — needs an authorized, in-scope target)*
+
+- Run the full graph ①–⑫ against an operator-authorized target: real router,
+  real OOB, real report. This is the **actual** end-to-end proof and supersedes
+  the S4.1 dry-run.
+- **Gate S8.4:** a live authorized hunt completes with (a) a real report on disk,
+  (b) an intact evidence trail (raw responses + OOB callbacks), (c) per-provider
+  budget buckets ≤ the $0.50 session line, (d) the operator confirming the
+  findings in the war room (S7.2 confirm/reject).
+
+### S8.5 — S7.4 visual smoke *(manual, during S8.4)*
+
+- Operator opens the war room at `http://127.0.0.1:8001/` *during* the live hunt
+  and confirms the four panels (state / findings / budget / routing) render, the
+  RESTRICTED re-route counter moves when the scrub fires, and the red **halt**
+  kill-switch actually stops dispatch. Closes the last S7 manual gate.
+
+**Gate S8 (overall):** S8.1 + S8.2 green offline (mocked Interactsh callback
+confirms a finding; empty-content stop rotates/retries; no network needed);
+S8.3 suite still green (target 204+ passed); S8.4 a live authorized hunt produces
+a real report + intact evidence trail within budget; S8.5 the operator confirms
+the war room live. `LOCAL_HEAVY` remains off throughout — heavy reasoning is
+Groq `qwen3.8-27b` ($0) until the operator confirms GPU hours (S5.5/S0.7).
+
+**Side items (not in the S8 core, operator-gated):** rotate the `ghp_` PAT that
+was once printed in session logs; pre-write the RunPod/Tailscale `llama-server`
+deploy scripts so `LOCAL_HEAVY` is a config-flip away once GPU hours are
+confirmed.
 
 ---
 

@@ -255,6 +255,20 @@ Be explicit about these — do not paper over them.
    does not import at test/dry-run time (S2 finding N2); they are only pulled
    in live/ingest paths.
 
+**Next phase — S8 (planned, not started).** S0–S7 are done and the control
+plane is proven to *run*; it is not yet proven to *hunt*. S8 closes the three
+findings a real hunt would trip over, then runs the first live hunt. Detail in
+`specs/assembly_plan_v3.md` §S8.1–S8.5. In order: **S8.1** OOB correlation via
+Interactsh (the send side already embeds OOB URLs, but `poll_callbacks` is a
+skeleton that nothing calls — blind SSRF/XSS never confirm); **S8.2** the
+reasoning-model empty-content guard + per-task `max_tokens` (a 200 with empty
+`content` is currently a silent no-answer); **S8.3** housekeeping sweep
+(`utcnow()` deprecations, aspirational `pyproject` deps); **S8.4** first live
+hunt on an operator-authorized target (held until a target is ready); **S8.5**
+the S7.4 war-room visual smoke (during S8.4). `LOCAL_HEAVY` stays off throughout
+(Groq `qwen3.8-27b` covers heavy reasoning at $0). No S8 code yet — suite is at
+204 passed.
+
 **Security:** API keys live only in the gitignored `.env`. (A 2026-10-15
 incident placed 4 free-tier keys in a tracked working-copy doc; they were moved
 to `.env` and the doc redacted — the operator has confirmed the file is clean.)
