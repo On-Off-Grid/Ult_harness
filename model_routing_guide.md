@@ -1,6 +1,7 @@
 # Bug Bounty Harness — LLM Model Routing & Task Allocation Guide
 
-> **Current — rewritten for Phase S5 (2026-10-17).** This guide describes the
+> **Current — S5a shipped, S5b live-verified (2026-10-17).** This guide
+> describes the
 > shipped **4-tier, multi-provider, lane-aware** router:
 > `LOCAL` → `LOCAL_HEAVY` → `PAID_FREE` → `PAID_PREMIUM`, the FREE pool
 > (Groq primary, OpenRouter / Mistral / Gemini / Cloudflare failover), the
@@ -63,13 +64,15 @@ falls back per chain (Gemini 1M / OpenRouter Nemotron 1M).
 | Provider | Role | Models (configured preference list) | Quota | Lane |
 |---|---|---|---|---|
 | **Groq** | **Primary** — fastest, EU ≈ 30–60 ms from Morocco | `openai/gpt-oss-120b`, `qwen/qwen3.8-27b` (the free 27B!), `openai/gpt-oss-20b` | 30 RPM / 1,000 RPD, 131K ctx | SAFE |
-| **OpenRouter** | Failover/resilience layer (routes to many backends) | `qwen/qwen3.8-27b:free` (262K), `nvidia/nemotron-3-ultra:free` (1M), `poolside/laguna-s-2.1:free` (code), + `anthropic/claude-sonnet-4` (paid overflow — only reachable via a PREMIUM chain stop, post top-up) | 20 RPM / 1,000 RPD, 262K ctx | SAFE |
-| **Mistral** | Code lane (after console data opt-out) | `codestral`, `mistral-small-latest`, `ministral-3-14b-latest` | 500 RPM / 1,000 RPD, 256K ctx | SAFE |
-| **Gemini** (AI Studio) | Long-context lane, 1M ctx | `gemini-2.5-flash`, `gemini-2.5-flash-lite` | 15 RPM / 1,500 RPD, 1M ctx | **RESTRICTED** (scrubbed content only) |
+| **OpenRouter** | Failover/resilience layer (routes to many backends) | `nvidia/nemotron-3-ultra-550b-a55b:free` (550B workhorse), `nvidia/nemotron-3-super-120b-a12b:free`, `poolside/laguna-s-2.1:free` (code — the dependable `:free`), + `anthropic/claude-sonnet-5.5` (paid overflow — only reachable via a PREMIUM chain stop, post top-up) | 20 RPM / 1,000 RPD, 262K ctx | SAFE |
+| **Mistral** | Code lane (after console data opt-out) | `mistral-small-latest`, `codestral-latest`, `ministral-14b-latest` | 500 RPM / 1,000 RPD, 256K ctx | SAFE |
+| **Gemini** (AI Studio) | Long-context lane, 1M ctx | `gemini-3.1-flash-lite`, `gemini-3.8-flash` | 15 RPM / 1,500 RPD, 1M ctx | **RESTRICTED** (scrubbed content only) |
 | **Cloudflare** Workers AI | Optional edge failover (best Morocco RTT) — only if a key exists | `@cf/openai/gpt-oss-120b` | 30 RPM / 1,000 RPD, 131K ctx | SAFE |
 
-Free-tier quotas drift (Groq rotated its catalog 2026-09-14/21) — so **model
-names are reconciled against each provider's live `GET /models` at startup**
+Free-tier quotas drift (Groq rotated its catalog 2026-09-14/21; the 2026-10
+S5b live run found OpenRouter / Mistral / Gemini had rotated too — the IDs
+above are the reconciled, live-verified ones) — so **model names are
+reconciled against each provider's live `GET /models` at startup**
 (`startup_discovery`, live mode only; never in dry-run/tests). A rotated-out
 model is never called: the router swaps to the first live model and logs a
 warning.
@@ -78,8 +81,8 @@ warning.
 
 | Provider | Role | Models | Quota | Lane |
 |---|---|---|---|---|
-| **GitHub Models** (Student Pack) | **Free frontier** — polish & narrative, $0 | `gpt-4o`, `claude-3-5-sonnet`, `gpt-4o-mini` | 15 RPM / 150 RPD, 128K ctx | **RESTRICTED** (logged; no secrets) |
-| OpenRouter paid overflow | After the $10 top-up, `anthropic/claude-sonnet-4` as last resort | (last entry in the openrouter preference list) | metered | SAFE |
+| **GitHub Models** (Student Pack) | **Free frontier — RETIRED upstream 2026-07-30.** Kept registered so the tier + `chain_narrative` / `report_polish` keep resolving; always 401s (the surviving `api.githubcopilot.com` surface needs an IDE OAuth token, not a `ghp_` PAT), so the chain's paid stop serves | `gpt-4o`, `claude-3-5-sonnet`, `gpt-4o-mini` | 15 RPM / 150 RPD, 128K ctx | **RESTRICTED** (logged; no secrets) |
+| OpenRouter paid overflow | After the $10 top-up (applied 2026-10-17), `anthropic/claude-sonnet-5.5` as last resort — **live-verified (catalog + paid 200)** | (last entry in the openrouter preference list) | metered | SAFE |
 
 **Direct OpenAI/Anthropic API keys are no longer required.** The legacy
 `OPENAI_API_KEY`/`ANTHROPIC_API_KEY` env vars survive only as a *compatibility
@@ -105,19 +108,19 @@ fallback stops. `chain` runs in `route()` after the preferred stop fails.
 | Task | Preferred | Chain / special handling |
 |---|---|---|
 | `scope_regex_gen` | LOCAL / Foundation-Sec-8B | |
-| `scope_interpret` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `qwen3.8-27b:free` |
+| `scope_interpret` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `nemotron-3-ultra-550b-a55b:free` |
 | `ideation_frame` | LOCAL / Foundation-Sec-8B | |
-| `ideation_deep` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `qwen3.8-27b:free` |
-| `waf_evasion` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `qwen3.8-27b:free` |
+| `ideation_deep` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `nemotron-3-ultra-550b-a55b:free` |
+| `waf_evasion` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `nemotron-3-ultra-550b-a55b:free` |
 | `fp_pattern_check` | LOCAL / Foundation-Sec-8B | |
-| `payload_craft` | LOCAL / Foundation-Sec-8B | → Mistral `codestral` → OpenRouter `laguna-s-2.1:free` |
-| `payload_polyglot` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `qwen3.8-27b:free` |
+| `payload_craft` | LOCAL / Foundation-Sec-8B | → Mistral `codestral-latest` → OpenRouter `laguna-s-2.1:free` |
+| `payload_polyglot` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `nemotron-3-ultra-550b-a55b:free` |
 | `oob_embed` | LOCAL / Foundation-Sec-8B | |
 | `js_endpoint_extract` | LOCAL / Foundation-Sec-8B | |
 | `secret_detection` | LOCAL / Foundation-Sec-8B | **`local_only`** — source carries secrets, never leaves the machine |
 | `source_vuln_scan` | LOCAL / Foundation-Sec-8B | |
-| `dataflow_analysis` | LOCAL_HEAVY / `qwen3.8-27b` | → Gemini `gemini-2.5-flash` (RESTRICTED) → OpenRouter `nemotron-3-ultra:free` |
-| `deobfuscation` | LOCAL_HEAVY / `qwen3.8-27b` | → Gemini `gemini-2.5-flash` → OpenRouter `nemotron-3-ultra:free` |
+| `dataflow_analysis` | LOCAL_HEAVY / `qwen3.8-27b` | → Gemini `gemini-3.1-flash-lite` (RESTRICTED) → OpenRouter `nemotron-3-super-120b-a12b:free` |
+| `deobfuscation` | LOCAL_HEAVY / `qwen3.8-27b` | → Gemini `gemini-3.1-flash-lite` → OpenRouter `nemotron-3-super-120b-a12b:free` |
 | `adaptive_payload_select` | LOCAL / Foundation-Sec-8B | |
 | `error_classify` | LOCAL / Foundation-Sec-8B | |
 | `dom_xss_confirm` | LOCAL / Foundation-Sec-8B | **`local_only`** |
@@ -128,19 +131,19 @@ fallback stops. `chain` runs in `route()` after the preferred stop fails.
 | `vuln_confirm` | PAID_FREE / Groq `gpt-oss-120b` | **two-model consensus** with `qwen3.8-27b` (GPU 27B if LOCAL_HEAVY up, else Groq's free 27B); confirmed only on agreement |
 | `idor_matrix_analyze` | PAID_FREE / Groq `gpt-oss-120b` | **two-model consensus** (same rule) |
 | `oob_correlate` | LOCAL / Foundation-Sec-8B | |
-| `biz_logic_validate` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `qwen3.8-27b:free` |
-| `ai_jailbreak_confirm` | LOCAL_HEAVY / `qwen3.8-27b` | → Groq `gpt-oss-120b` → OpenRouter `qwen3.8-27b:free` |
-| `chain_analysis` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `qwen3.8-27b:free` |
-| `impact_escalation` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `qwen3.8-27b:free` |
-| `chain_narrative` | PAID_PREMIUM / GitHub `claude-3-5-sonnet` | → OpenRouter `claude-sonnet-4` (paid, post top-up) |
+| `biz_logic_validate` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `nemotron-3-ultra-550b-a55b:free` |
+| `ai_jailbreak_confirm` | LOCAL_HEAVY / `qwen3.8-27b` | → Groq `gpt-oss-120b` → OpenRouter `nemotron-3-ultra-550b-a55b:free` |
+| `chain_analysis` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `nemotron-3-ultra-550b-a55b:free` |
+| `impact_escalation` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `nemotron-3-ultra-550b-a55b:free` |
+| `chain_narrative` | PAID_PREMIUM / GitHub `claude-3-5-sonnet` | → OpenRouter `claude-sonnet-5.5` (paid, top-up applied 2026-10-17) |
 | `vrt_classify` | LOCAL / Foundation-Sec-8B | |
 | `cwe_assign` | LOCAL / Foundation-Sec-8B | |
-| `cvss_calculate` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `qwen3.8-27b:free` |
-| `dispute_prep` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `qwen3.8-27b:free` |
+| `cvss_calculate` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `nemotron-3-ultra-550b-a55b:free` |
+| `dispute_prep` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `nemotron-3-ultra-550b-a55b:free` |
 | `duplicate_detect` | LOCAL / Foundation-Sec-8B | |
-| `triage_decision` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `qwen3.8-27b:free` |
-| `report_draft` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `qwen3.8-27b:free` |
-| `report_polish` | PAID_PREMIUM / GitHub `gpt-4o` | → OpenRouter `claude-sonnet-4` (paid, post top-up) |
+| `triage_decision` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `nemotron-3-ultra-550b-a55b:free` |
+| `report_draft` | PAID_FREE / Groq `gpt-oss-120b` | → OpenRouter `nemotron-3-ultra-550b-a55b:free` |
+| `report_polish` | PAID_PREMIUM / GitHub `gpt-4o` | → OpenRouter `claude-sonnet-5.5` (paid, top-up applied 2026-10-17) |
 | `report_format` | LOCAL / Foundation-Sec-8B | |
 | `screenshot_alt_text` | LOCAL / Foundation-Sec-8B | |
 
@@ -154,9 +157,17 @@ fallback stops. `chain` runs in `route()` after the preferred stop fails.
   free `qwen/qwen3.8-27b` on Groq covers most deep-reasoning needs at $0; the
   GPU earns its hour for uncensored HauhauCS profile, >131K context, RPD
   exhaustion, or privacy.
-- **PREMIUM is two tasks only** (`report_polish`, `chain_narrative`) and its
-  first stop is *free* (GitHub Models Student Pack). Paid overflow activates
-  only after the OpenRouter top-up.
+- **PREMIUM is two tasks only** (`report_polish`, `chain_narrative`). The
+  GitHub Models first stop is **retired upstream (2026-07-30)** and 401s, so in
+  practice these resolve to the OpenRouter paid stop (`claude-sonnet-5.5`,
+  post top-up — live-verified 2026-10-17).
+- **Reasoning-model budget note (S5b finding):** the Groq primary
+  `openai/gpt-oss-120b` and the nemotron `:free` models spend ~100 tokens on
+  reasoning before emitting `content`. A small per-task `max_tokens` (e.g. 32)
+  yields a 200 with **empty content**. Size `max_tokens` past the reasoning
+  budget (the live probes use 160), or prefer `qwen/qwen3.8-27b` for short
+  verdicts. Also note `nemotron-550b:free` free-pool flaked to empty bodies on
+  200s — the dependable `:free` workhorse is `poolside/laguna-s-2.1:free`.
 - **The consensus pair has no chain** — `vuln_confirm` / `idor_matrix_analyze`
   use `agree_with` (a second opinion), not failover: a finding is CONFIRMED
   only when both models agree; disagreement is logged and the operator decides
@@ -268,7 +279,7 @@ call is billed into its own tracker bucket (`<task_id>_consensus`).
 |---|---|
 | Standard 8-h session, GPU off, free pool + local | **$0.00** |
 | Heavy hunt, GPU on 8 h (4090, RunPod EU) | ~$2.80–$3.60 |
-| Polish/narrative (GitHub Models free) → OpenRouter paid overflow | ~$0.05–$0.30 |
+| Polish/narrative (GitHub retired → OpenRouter paid overflow) | ~$0.06 per task (~$0.003 verified live) |
 | Fixed: OpenRouter $10/month top-up (1,000 RPD free quota + paid failover headroom) | $10 |
 | **Fixed monthly** | **$10** |
 | **Projected monthly (20 sessions, GPU ~4 h)** | **~$11–15** |
@@ -357,11 +368,18 @@ The dashboard at `http://127.0.0.1:8001/` (served same-origin by
 
 ---
 
-## 9. Pending live verification (S5b)
+## 9. Live verification (S5b) — PASSED 2026-10-17
 
 S5a shipped keyless and mock-tested (Gate S5 items 1, 3–6 in
-`tests/test_s5_router.py`). **S5b** — strictly after the operator's **$10
-OpenRouter top-up** — verifies the live path: one real 200 per enabled
-provider (logged with provider/tier/lane) + a live `GET /models` re-check of
-every enabled catalog. Until then the configured quotas above are the 2026-10
-figures and must be re-verified live (free tiers drift).
+`tests/test_s5_router.py`). **S5b passed live** on 2026-10-17, after the
+operator's $10 OpenRouter top-up: **5/6 enabled providers returned a live 200**
+(ollama, groq, openrouter, mistral, gemini — each logged with
+provider/tier/lane) + a live `GET /models` re-check of every enabled catalog
+(2/2 + 3/3 + 4/4 + 3/3 + 2/2 prefs still live, zero drift after re-point) +
+the paid-overflow `anthropic/claude-sonnet-5.5` resolving (live catalog + paid
+200). `github_models` was reported **UNVERIFIABLE** (upstream retired
+2026-07-30), not a code defect. Re-run any time with
+`python scripts/s5b_live_verify.py` (free providers $0 + one ~$0.003 paid
+probe); the 5 S5b regression tests in `tests/test_s5_router.py` lock the
+findings offline. The quotas above are the 2026-10-17 live figures; free
+tiers still drift, so re-verify live before relying on a specific ID.

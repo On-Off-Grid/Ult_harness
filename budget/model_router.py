@@ -71,18 +71,19 @@ LOCAL_LIGHT_PRIMARY = "hf.co/dr-ry/Foundation-Sec-8B-Instruct-GGUF:Q4_K_M"
 LOCAL_LIGHT_FALLBACK = "qwen2.5:7b"
 # LOCAL_HEAVY: Qwen3.8-27B on the cloud GPU (self-hosted llama-server, $0/token).
 LOCAL_HEAVY_MODEL = "qwen3.8-27b"
-# PAID_FREE pool.
+# PAID_FREE pool. (S5b 2026-10-17: OpenRouter free IDs + Gemini reconciled
+# against the LIVE catalog — the 2026-09/10 rotations rotated out the old IDs.)
 G120 = "openai/gpt-oss-120b"            # Groq primary (free)
 GROQ_27B = "qwen/qwen3.8-27b"           # Groq (consensus second model, non-GPU)
-OR_27B_FREE = "qwen/qwen3.8-27b:free"   # OpenRouter :free
-NEMO_FREE = "nvidia/nemotron-3-ultra:free"   # OpenRouter :free (1M ctx)
-LAGUNA_FREE = "poolside/laguna-s-2.1:free"   # OpenRouter :free (code)
-CODESTRAL = "codestral"                 # Mistral (code lane)
-GEMINI_FLASH = "gemini-2.5-flash"       # Gemini free 1M (RESTRICTED lane)
+OR_27B_FREE = "nvidia/nemotron-3-ultra-550b-a55b:free"   # OpenRouter :free (550B, the workhorse)
+NEMO_FREE = "nvidia/nemotron-3-super-120b-a12b:free"     # OpenRouter :free
+LAGUNA_FREE = "poolside/laguna-s-2.1:free"               # OpenRouter :free (code)
+CODESTRAL = "codestral-latest"             # Mistral (code lane)
+GEMINI_FLASH = "gemini-3.1-flash-lite"     # Gemini free frontier (RESTRICTED lane)
 # PAID_PREMIUM frontier.
 GH_GPT4O = "gpt-4o"                     # GitHub Models free frontier ($0)
 GH_CLAUDE = "claude-3-5-sonnet"         # GitHub Models free frontier ($0)
-OR_CLAUDE_PAID = "anthropic/claude-sonnet-4"   # OpenRouter paid overflow (post top-up)
+OR_CLAUDE_PAID = "anthropic/claude-sonnet-5.5"   # OpenRouter paid overflow (post top-up)
 
 
 class ModelTier(str, Enum):

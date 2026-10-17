@@ -511,3 +511,150 @@ def test_provider_status_shape():
     # gemini is the RESTRICTED-lane free-tier provider (S5.3).
     gem = next(s for s in snap if s["name"] == "gemini")
     assert gem["tier"] == "PAID_FREE" and gem["lane"] == "RESTRICTED"
+
+
+# ── S5b — live-catalog reconciliation regressions (offline) ────────────────
+# The S5b live run (2026-10-17) exposed three real defects that are now locked
+# by these hermetic tests: (1) Gemini-native discovery parsed dict-strings,
+# (2) default_http sent a JSON body on GET (Groq/Gemini 400), and
+# (3) a placeholder .env key advertised a fake-enabled provider.
+
+from budget.providers import build_registry, discover_models, Provider  # noqa: E402
+from core.config import _clean_key  # noqa: E402
+
+
+def _gemini_provider():
+    # Pick by name: index 0 is always ollama (registered unconditionally).
+    return next(p for p in build_registry(HarnessConfig(gemini_api_key="K"))
+                if p.name == "gemini")
+
+
+def test_s5b_gemini_native_discovery_parses_clean_ids(run_async):
+    """Gemini GET /models returns {"models":[{"name":"models/<id>"}]} (dicts,
+    models/-prefixed) — NOT OpenAI's {"data":[{"id"}]}. The parser must yield
+    bare IDs (the 2026-10 S5b bug turned them into str(dict) garbage, so
+    resolved_models() then 'called' a model named "{'name': ...}" -> 404)."""
+    p = _gemini_provider()
+    seen = {}
+
+    async def fake_http(method, url, headers, payload, timeout=10):
+        seen["method"], seen["headers"] = method, headers
+        return 200, {"models": [
+            {"name": "models/gemini-3.1-flash-lite"},
+            {"name": "models/gemini-3.8-flash"},
+            {"name": "models/gemini-2.5-pro"},
+        ]}
+
+    run_async(discover_models(p, http=fake_http))
+    # Clean, bare IDs — no "models/" prefix, no dict-string artifacts.
+    assert p.live_models == ["gemini-3.1-flash-lite", "gemini-3.8-flash",
+                             "gemini-2.5-pro"], p.live_models
+    for m in p.live_models:
+        assert m.startswith("models/") is False
+        assert "{" not in m
+    # resolved_models() must now return usable IDs (intersection of prefs + live).
+    assert set(p.resolved_models()) <= set(p.live_models)
+    # Gemini auth is the x-goog-api-key header, NOT Bearer (the S5b header fix).
+    assert seen["method"] == "GET"
+    assert seen["headers"].get("x-goog-api-key") == "K"
+    assert "Authorization" not in seen["headers"]
+
+
+def test_s5b_discovery_is_bodyless_get(monkeypatch):
+    """default_http must not attach a JSON body to a GET — sending json={} adds a
+    Content-Type: application/json body that Groq/Gemini reject with 400, so
+    discovery silently failed open and drift went unseen (the S5b finding)."""
+    from budget import providers
+    import aiohttp
+    captured = {}
+
+    class _Resp:
+        status = 200
+
+        async def json(self, content_type=None):
+            return {"data": [{"id": "x"}]}
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+    class _Sess:
+        """Fake aiohttp.ClientSession: default_http does
+        ``async with aiohttp.ClientSession() as session:`` then
+        ``async with session.request(method, url, headers=..., json=..., ...)``."""
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        def request(self, method, url, headers=None, json=None, timeout=None):
+            captured["method"] = method
+            captured["json"] = json
+            return _Resp()
+
+    monkeypatch.setattr(aiohttp, "ClientSession", _Sess)
+    import asyncio
+    asyncio.run(providers.default_http("GET", "https://x/v1/models",
+                                       {"Authorization": "Bearer k"}, {}))
+    assert captured["method"] == "GET"
+    assert captured["json"] is None, "GET must be bodyless"
+
+
+def test_s5b_placeholder_key_counts_as_unset():
+    """A half-filled .env (ghp_REPLACE_ME etc.) must not advertise a fake-enabled
+    provider. _clean_key normalizes placeholder/empty values to None."""
+    assert _clean_key(None) is None
+    assert _clean_key("") is None
+    assert _clean_key("   ") is None
+    assert _clean_key("ghp_REPLACE_ME") is None
+    assert _clean_key("sk-EXAMPLE_KEY_123") is None
+    assert _clean_key("sk-change-me") is None
+    # A genuine-looking key is kept verbatim.
+    assert _clean_key("gsk_7cXYZ123") == "gsk_7cXYZ123"
+    assert _clean_key("sk-or-v1-abcd1234") == "sk-or-v1-abcd1234"
+
+
+def test_s5b_load_from_env_drops_placeholder_github(monkeypatch):
+    """load_from_env must drop a placeholder GITHUB_TOKEN so github_models is not
+    advertised as enabled (the S5b .env finding)."""
+    monkeypatch.setenv("GITHUB_TOKEN", "ghp_REPLACE_ME")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    cfg = HarnessConfig.load_from_env()
+    assert cfg.github_token is None
+    assert cfg.provider_enabled("github") is False
+
+
+def test_s5b_2026_catalog_ids_are_costed_and_hosted():
+    """Every model the router constants point at must have a MODEL_COSTS entry
+    AND be hosted by an enabled provider under the full config — otherwise Gate 1
+    (table integrity) or _estimate_cost would silently break after the 2026
+    free-tier rotation. This pins the reconciled live IDs."""
+    from budget.model_router import (
+        OR_27B_FREE, NEMO_FREE, LAGUNA_FREE, CODESTRAL,
+        GEMINI_FLASH, OR_CLAUDE_PAID,
+    )
+    pinned = {
+        OR_27B_FREE, NEMO_FREE, LAGUNA_FREE, CODESTRAL, GEMINI_FLASH,
+        OR_CLAUDE_PAID, G120, LOCAL_HEAVY_MODEL, LOCAL_LIGHT_PRIMARY,
+    }
+    for m in pinned:
+        assert m in MODEL_COSTS, f"model '{m}' has no MODEL_COSTS entry"
+    # The PAID_FREE :free trio + Gemini are $0; the paid overflow is not.
+    for free in (OR_27B_FREE, NEMO_FREE, LAGUNA_FREE, GEMINI_FLASH):
+        assert free.endswith(":free") or free in ("codestral-latest",
+                                                  "gemini-3.1-flash-lite")
+    c = MODEL_COSTS[OR_CLAUDE_PAID]
+    assert c["input"] > 0 and c["output"] > 0  # the paid overflow actually costs
+    # And each is hosted by some enabled provider (full config).
+    r = ModelRouter(full_cfg())
+    by_model = set()
+    for p in r._registry:
+        if p.enabled and p.available:
+            by_model.update(p.models)
+    for m in pinned:
+        assert m in by_model, f"model '{m}' not hosted by any enabled provider"

@@ -5,14 +5,13 @@ new operator) and you have nothing else, this file is enough to verify the
 harness end-to-end. It tells you **what exists, what is verified, how to run
 it, and what is still open.**
 
-> **One-sentence status (2026-10-17):** Phases S0–S4 plus **S5a** (the
-> multi-provider 4-tier model router, mock-tested) and **S7** (the operator
-> war-room dashboard on `:8001`) are complete and committed — the control
-> plane is built, audited (S2), integrated end-to-end (S4), and has a
-> **199-test suite all green**. Phase **S5b (live provider verification)** is
-> the only S5 remainder and is **blocked on the operator's $10 OpenRouter
-> top-up**; the live run path (3.3) is wired and runnable, with per-provider
-> 200-verification still to do after the top-up.
+> **One-sentence status (2026-10-17):** Phases S0–S4, **S5 (a+b)**, and **S7**
+> (the operator war-room dashboard on `:8001`) are complete and committed — the
+> control plane is built, audited (S2), integrated end-to-end (S4), has a
+> **204-test suite all green**, and its **S5b live provider verification PASSED
+> post top-up** (5/6 enabled providers returned a live 200 logged per
+> provider/tier/lane + paid overflow resolved; `github_models` reported
+> UNVERIFIABLE because the upstream service was retired 2026-07-30).
 
 ---
 
@@ -141,12 +140,22 @@ are wired. The live path runs with whatever keys are present in `.env`:
   reconciles every live `GET /models` catalog against the configured
   preferences (fail-open).
 
-> **S5b caveat (live verification pending).** The router is built and
-> mock-tested keyless (S5a), but the **one-real-200-per-provider** gate item is
-> not yet run against live endpoints — that is held on the operator's **$10
-> OpenRouter top-up** (see §5 item 1). A live run with free-tier keys will work
-> and be logged per-provider/tier/lane, but treat the per-provider 200 as
-> unverified until S5b passes.
+> **S5b — live verification PASSED (2026-10-17, post top-up).** The router's
+> **one-real-200-per-provider** gate item was run live against the operator's
+> real `.env` keys (the $10 OpenRouter top-up landed first) via
+> `scripts/s5b_live_verify.py`. **5/6 enabled providers returned a live 200**
+> (logged per provider/tier/lane): `ollama` (LOCAL/SAFE), `groq`
+> `openai/gpt-oss-120b` (PAID_FREE/SAFE), `openrouter`
+> `nvidia/nemotron-3-ultra-550b-a55b:free` (PAID_FREE/SAFE), `mistral`
+> `codestral-latest` (PAID_FREE/SAFE; the primary `mistral-small-latest` was
+> per-model 429-throttled and rotated within the provider), `gemini`
+> `gemini-3.1-flash-lite` (PAID_FREE/RESTRICTED). The **paid overflow
+> `anthropic/claude-sonnet-5.5` resolved** (live catalog + a real paid 200).
+> `github_models` is **UNVERIFIABLE, not a code defect** — the GitHub Models
+> inference service was **retired upstream 2026-07-30** (the surviving
+> `api.githubcopilot.com` needs an IDE OAuth token, not a `ghp_` PAT); it stays
+> registered so PAID_PREMIUM keeps resolving, with the chain's OpenRouter paid
+> stop serving whenever it 401s. Re-run any time with `scripts/s5b_live_verify.py`.
 
 ### 3.4 Open the operator war-room dashboard (S7)
 
@@ -208,23 +217,26 @@ components are byte-for-byte standalone. Full record + re-apply recipe:
 
 Be explicit about these — do not paper over them.
 
-1. **S5b — live provider verification: PENDING (blocked on operator top-up).**
-   The S5 router rework is **built and mock-tested (S5a DONE)** — 4-tier
-   structure (`LOCAL / LOCAL_HEAVY / PAID_FREE / PAID_PREMIUM`), the
-   multi-provider FREE pool (Groq primary, OpenRouter/Mistral/Gemini/Cloudflare
-   failover, GitHub Models free frontier), per-provider rate limiters + 429
+1. **S5b — live provider verification: DONE (PASS, 2026-10-17, post top-up).**
+   The S5 router rework is **built, mock-tested (S5a), and now live-verified
+   (S5b)** — 4-tier structure (`LOCAL / LOCAL_HEAVY / PAID_FREE /
+   PAID_PREMIUM`), the multi-provider FREE pool (Groq primary,
+   OpenRouter/Mistral/Gemini/Cloudflare failover, GitHub Models free frontier —
+   now upstream-retired, see item 2 below), per-provider rate limiters + 429
    rotation, runtime `/models` discovery, SAFE/RESTRICTED data-lane scrub hook,
-   per-provider tracker buckets, two-model validation consensus. Spec S5.1–S5.8;
-   Gate S5 items 1 & 3–6 are green in `tests/test_s5_router.py`. The **one
-   remaining item (Gate S5 #2)** — one real **200** per enabled provider
-   (logged with provider/tier/lane) + a live `GET /models` re-check — needs
-   live keys and runs **strictly last**, held on the **$10 OpenRouter top-up**
-   (operator action) so the paid-overflow model resolves too. Until S5b: the
-   live run path (3.3) is wired and safe to run on whatever keys are in `.env`,
-   but per-provider 200s are unverified; the dry-run and all tests are
-   unaffected and the S4.3 "no paid spend" invariant still holds.
+   per-provider tracker buckets, two-model validation consensus. **All six
+   Gate S5 items are green:** 1, 3–6 in `tests/test_s5_router.py` (offline),
+   and **item 2 (one real 200 per enabled provider, logged per
+   provider/tier/lane, + a live `GET /models` re-check) passed live** on
+   2026-10-17 after the operator's $10 OpenRouter top-up — 5/6 enabled
+   providers (ollama, groq, openrouter, mistral, gemini) + the paid-overflow
+   model resolved. The live re-check also caught and fixed **2026 free-tier ID
+   drift** (OpenRouter `:free`, Mistral, Gemini re-pointed to live IDs) plus
+   two real bugs (Gemini-native discovery parsing, bodyless GET). The
+   re-runnable live check is `scripts/s5b_live_verify.py`; the dry-run and all
+   204 tests are unaffected and the S4.3 "no paid spend" invariant still holds.
    - `model_routing_guide.md` has been **rewritten** to the shipped S5 router
-     (2026-10-17) and is now current.
+     (2026-10-17) and is now current (incl. the GitHub Models retirement).
 2. **S0.7 — AMD Developer pack cloud-GPU hours: UNVERIFIED.** No local
    artifacts found; needs a manual login to the AMD developer portal. Until
    then `LOCAL_HEAVY` is **off/optional** and heavy reasoning leans on the free
@@ -258,10 +270,10 @@ for what each lane is used for):
 
 ```
 GROQ_API_KEY=            # primary FREE lane
-OPENROUTER_API_KEY=      # failover lane (S5) — apply $10 top-up before S5
+OPENROUTER_API_KEY=      # failover lane (S5) — $10 top-up applied (2026-10-17), paid overflow live
 MISTRAL_API_KEY=         # code lane (Codestral) (S5)
 GEMINI_API_KEY=          # long-context RESTRICTED lane (S5)
-GITHUB_TOKEN=            # GitHub Models free frontier (S5)
+GITHUB_TOKEN=            # GitHub Models PAID_PREMIUM frontier (S5) — upstream RETIRED 2026-07-30, 401s
 OLLAMA_URL=              # default http://127.0.0.1:11434
 LOCAL_HEAVY_URL=         # set when a 27B GPU endpoint is spun up (off by default)
 LOCAL_HEAVY_API_KEY=
@@ -270,6 +282,16 @@ LOCAL_HEAVY_HOURLY_COST=
 
 The **dry-run and the whole test suite need none of these.** Only the live FREE
 lanes (S5) and a live `LOCAL_HEAVY` GPU need keys.
+
+> **`.env` hygiene (S5b finding, 2026-10-17):** placeholder values
+> (`ghp_REPLACE_ME`, empty, `sk-or-xxxx…`) are normalized to *unset* by
+> `core/config.py::_clean_key()`, so a half-filled `.env` can no longer
+> advertise a fake-enabled provider. `GITHUB_TOKEN` is one such placeholder in
+> `.env`; a real PAT in the shell environment still overrides it (dotenv
+> `override=False`) — if so, rotate it, since it has been printed in session
+> logs. The GitHub Models inference service behind it was retired upstream
+> 2026-07-30, so even a valid PAT 401s; the PAID_PREMIUM chain falls through to
+> the OpenRouter paid stop.
 
 ---
 

@@ -75,9 +75,13 @@ def default_http(method: str, url: str, headers: Dict[str, str],
     import aiohttp
 
     async def _call() -> Tuple[int, Dict[str, Any]]:
+        # S5b fix: GETs must go out bodyless. Sending json={} (even empty) adds a
+        # Content-Type: application/json body that Groq/Gemini reject with 400 —
+        # discovery was silently failing open and drift went unseen.
+        req_body = None if method.upper() == "GET" else payload
         async with aiohttp.ClientSession() as session:
             async with session.request(
-                method, url, headers=headers, json=payload,
+                method, url, headers=headers, json=req_body,
                 timeout=aiohttp.ClientTimeout(total=timeout),
             ) as resp:
                 try:
@@ -290,7 +294,11 @@ async def discover_models(provider: Provider, *, http: Optional[HttpFn] = None,
         url = f"{base}/models"
     headers = {}
     if provider.key and provider.api_style is not ApiStyle.OLLAMA:
-        headers["Authorization"] = f"Bearer {provider.key}"
+        if provider.api_style is ApiStyle.GEMINI_NATIVE:
+            # Gemini list-models wants the API key as a header, not Bearer.
+            headers["x-goog-api-key"] = provider.key
+        else:
+            headers["Authorization"] = f"Bearer {provider.key}"
     try:
         status, data = await http("GET", url, headers, {}, timeout)
     except Exception as exc:  # pragma: no cover - network edge
@@ -304,9 +312,25 @@ async def discover_models(provider: Provider, *, http: Optional[HttpFn] = None,
     else:
         items = data.get("data")
         if isinstance(items, list):
-            names = [m.get("id", "") for m in items]
+            # OpenAI-compat / OpenRouter / Mistral / Cloudflare: {"data":[{"id":...}]}
+            names = [m.get("id", "") if isinstance(m, dict) else str(m)
+                     for m in items]
         else:
-            names = [str(m) for m in (data.get("models") or [])]
+            # Gemini-native: {"models":[{"name":"models/<id>",...}]} (and any
+            # provider that returns a bare list of names). S5b fix: the old code
+            # did str(dict) here, turning live_models into dict-strings so
+            # resolved_models() then "called" a model named "{'name': ...}".
+            raw = data.get("models")
+            names = []
+            if isinstance(raw, list):
+                for m in raw:
+                    if isinstance(m, dict):
+                        nm = m.get("name") or m.get("id") or ""
+                    else:
+                        nm = str(m)
+                    if isinstance(nm, str) and nm.startswith("models/"):
+                        nm = nm[len("models/"):]
+                    names.append(nm)
     names = [n for n in names if n]
     provider.live_models = names or None
     if names:
@@ -321,7 +345,11 @@ async def discover_models(provider: Provider, *, http: Optional[HttpFn] = None,
 GROQ_BASE = "https://api.groq.com/openai/v1"
 OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 MISTRAL_BASE = "https://api.mistral.ai/v1"
-GITHUB_MODELS_BASE = "https://models.inference.ai.azure.com"   # GitHub Models (OpenAI-compat)
+# GitHub Models: current OpenAI-compat base (S5b 2026-10-17: the old
+# models.inference.ai.azure.com host is dead — NXDOMAIN). Without the /v1
+# prefix, both discovery (GET /models) and chat (POST /chat/completions)
+# hit live routes (they 401 only on an invalid/placeholder token).
+GITHUB_MODELS_BASE = "https://api.githubcopilot.com"
 CLOUDFLARE_BASE = "https://inference.cloudflare.com/v1"
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta"
 
@@ -376,8 +404,9 @@ def build_registry(config) -> List[Provider]:
             base_url=OPENROUTER_BASE, key=openrouter_key,
             # last entry = paid overflow (only reachable via a PAID_PREMIUM chain
             # stop, after the OpenRouter top-up; the ":free" suffix rule keeps the
-            # free trio at $0)
-            models=["qwen/qwen3.8-27b:free", "nvidia/nemotron-3-ultra:free", "poolside/laguna-s-2.1:free", "anthropic/claude-sonnet-4"],
+            # free trio at $0). S5b 2026-10-17: IDs reconciled against the live
+            # catalog — qwen3.8-27b:free + nemotron-3-ultra:free had rotated out.
+            models=["nvidia/nemotron-3-ultra-550b-a55b:free", "nvidia/nemotron-3-super-120b-a12b:free", "poolside/laguna-s-2.1:free", "anthropic/claude-sonnet-5.5"],
             context=262144, rpm=20, rpd=1000,
         ))
     mistral_key = getattr(config, "mistral_api_key", None)
@@ -385,7 +414,9 @@ def build_registry(config) -> List[Provider]:
         regs.append(Provider(
             name="mistral", tier="PAID_FREE", lane=DataLane.SAFE, api_style=ApiStyle.OPENAI_COMPAT,
             base_url=MISTRAL_BASE, key=mistral_key,
-            models=["codestral", "mistral-small-latest", "ministral-3-14b-latest"],
+            # S5b 2026-10-17: "codestral" + "ministral-3-14b-latest" rotated out
+            # of the live catalog (verified via GET /models).
+            models=["mistral-small-latest", "codestral-latest", "ministral-14b-latest"],
             context=256000, rpm=500, rpd=1000,
         ))
 
@@ -395,17 +426,25 @@ def build_registry(config) -> List[Provider]:
         regs.append(Provider(
             name="github_models", tier="PAID_PREMIUM", lane=DataLane.RESTRICTED,
             api_style=ApiStyle.OPENAI_COMPAT, base_url=GITHUB_MODELS_BASE, key=github_token,
+            # S5b 2026-10-17: GitHub Models (the ghp_ PAT inference service) was
+            # RETIRED 2026-07-30 upstream; the surviving Copilot OpenAI-compat
+            # surface is api.githubcopilot.com and needs an IDE OAuth token, not
+            # a classic PAT. Kept so the PAID_PREMIUM tier + chain_narrative /
+            # report_polish keep resolving; the chain's second stop (OpenRouter
+            # paid) serves whenever this provider 401s/404s.
             models=["gpt-4o", "claude-3-5-sonnet", "gpt-4o-mini"],
             context=128000, rpm=15, rpd=150,
         ))
-    # Gemini: free-tier 1M-context frontier (RESTRICTED lane - scrubbed content only).
+    # Gemini: free-tier frontier (RESTRICTED lane - scrubbed content only).
     # PAID_FREE tier: it costs $0; the RESTRICTED lane is the data constraint.
+    # S5b 2026-10-17: gemini-2.5-flash(-lite) returned 404 "no longer available
+    # to new users" on this account; 3.1-flash-lite verified live (200, real text).
     gemini_key = getattr(config, "gemini_api_key", None)
     if gemini_key and not dis("gemini"):
         regs.append(Provider(
             name="gemini", tier="PAID_FREE", lane=DataLane.RESTRICTED,
             api_style=ApiStyle.GEMINI_NATIVE, base_url=GEMINI_BASE, key=gemini_key,
-            models=["gemini-2.5-flash", "gemini-2.5-flash-lite"],
+            models=["gemini-3.1-flash-lite", "gemini-3.8-flash"],
             context=1000000, rpm=15, rpd=1500,
         ))
     if (getattr(config, "cloudflare_api_token", None)

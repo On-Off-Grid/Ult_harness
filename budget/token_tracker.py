@@ -40,17 +40,23 @@ MODEL_COSTS: Dict[str, Dict[str, float]] = {
     "openai/gpt-oss-120b":     {"input": 0.0, "output": 0.0},
     "qwen/qwen3.8-27b":        {"input": 0.0, "output": 0.0},
     "openai/gpt-oss-20b":      {"input": 0.0, "output": 0.0},
-    # S5: OpenRouter :free models ($0 on the free tier)
-    "qwen/qwen3.8-27b:free":      {"input": 0.0, "output": 0.0},
-    "nvidia/nemotron-3-ultra:free": {"input": 0.0, "output": 0.0},
+    # S5: OpenRouter :free models ($0 on the free tier). S5b 2026-10-17: the live
+    # catalog rotated to nemotron-3.5 / 3-ultra-550b / super-120b; laguna kept.
+    "nvidia/nemotron-3-ultra-550b-a55b:free": {"input": 0.0, "output": 0.0},
+    "nvidia/nemotron-3-super-120b-a12b:free": {"input": 0.0, "output": 0.0},
     "poolside/laguna-s-2.1:free":  {"input": 0.0, "output": 0.0},
-    # S5: Mistral (code lane)
+    # S5: Mistral (code lane). S5b 2026-10-17: "codestral" → "codestral-latest",
+    # "ministral-3-14b-latest" → "ministral-14b-latest" (live catalog IDs).
     "codestral":              {"input": 0.0, "output": 0.0},
+    "codestral-latest":       {"input": 0.0, "output": 0.0},
     "mistral-small-latest":   {"input": 0.0, "output": 0.0},
-    "ministral-3-14b-latest": {"input": 0.0, "output": 0.0},
-    # S5: Gemini (free tier)
+    "ministral-14b-latest":   {"input": 0.0, "output": 0.0},
+    # S5: Gemini (free tier). S5b 2026-10-17: 2.5-flash(-lite) 404 "no longer
+    # available to new users" on this account → 3.1-flash-lite / 3.8-flash.
     "gemini-2.5-flash":       {"input": 0.0, "output": 0.0},
     "gemini-2.5-flash-lite":  {"input": 0.0, "output": 0.0},
+    "gemini-3.1-flash-lite":  {"input": 0.0, "output": 0.0},
+    "gemini-3.8-flash":       {"input": 0.0, "output": 0.0},
     # S5: GitHub Models free frontier (gpt-4o / claude are $0 on that provider)
     "claude-3-5-sonnet":      {"input": 0.0, "output": 0.0},
     # S5: Cloudflare Workers AI
@@ -63,8 +69,9 @@ MODEL_COSTS: Dict[str, Dict[str, float]] = {
     # without this entry the router's premium task was silently costed at $0.
     "claude-sonnet-4-20250514": {"input": 3.00, "output": 15.00},
     "claude-haiku":        {"input": 0.25,   "output": 1.25},
-    # S5: OpenRouter paid overflow (post top-up)
+    # S5: OpenRouter paid overflow (post top-up). S5b 2026-10-17: 4 → 5.5.
     "anthropic/claude-sonnet-4": {"input": 3.00, "output": 15.00},
+    "anthropic/claude-sonnet-5.5": {"input": 3.00, "output": 15.00},
 }
 
 # Providers where every model is $0 (free tier / self-hosted). The same model
@@ -305,10 +312,10 @@ class TokenTracker:
             ("hf.co/dr-ry/Foundation-Sec-8B-Instruct-GGUF:Q4_K_M", "ollama", 1500, 400, 40),
             ("qwen3.8-27b", "local_heavy", 4000, 900, 6),            # deep reasoning (GPU, $0/token)
             ("openai/gpt-oss-120b", "groq", 1800, 500, 60),
-            ("qwen/qwen3.8-27b:free", "openrouter", 1800, 500, 20),
-            ("codestral", "mistral", 1500, 400, 6),
+            ("nvidia/nemotron-3-ultra-550b-a55b:free", "openrouter", 1800, 500, 20),  # S5b 2026-10: live :free
+            ("codestral-latest", "mistral", 1500, 400, 6),           # S5b 2026-10: live ID
             ("gpt-4o", "github_models", 1600, 500, 8),                # free frontier
-            ("anthropic/claude-sonnet-4", "openrouter", 2000, 1500, 2),  # paid overflow tail
+            ("anthropic/claude-sonnet-5.5", "openrouter", 2000, 1500, 2),  # paid overflow tail
         ]
         mix = mix if mix is not None else standard
         total = 0.0
