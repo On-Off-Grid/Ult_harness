@@ -189,8 +189,10 @@ def cmd_fetch(key: str, handle: str, out: str) -> int:
             for m in mobile
         ]
 
-    Path(out).write_text(json.dumps(payload, indent=2, ensure_ascii=False),
-                         encoding="utf-8")
+    out_path = Path(out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, indent=2, ensure_ascii=False),
+                        encoding="utf-8")
     print(f"[ok] program        : {handle} — {data.get('name', '')}")
     print(f"[ok] in-scope rules : {n_in}")
     print(f"[ok] out-of-scope   : {n_out} (tier 'No Bounty')")
