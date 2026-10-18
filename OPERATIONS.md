@@ -11,12 +11,16 @@ it, and what is still open.**
 > end-to-end (S4), has real OOB correlation (Interactsh, S8.1), the
 > reasoning-model empty-content guard (S8.2, live-probe PASS), and the S8.3
 > housekeeping sweep (timezone-aware timestamps, trimmed `pyproject` deps),
-> has a **239-test suite all green (1 warning, unrelated httpx2/Starlette note)**,
+> has a **260-test suite all green (1 warning, unrelated httpx2/Starlette note)**,
 > and its **S5b live provider verification PASSED post top-up** (5/6 enabled
 > providers returned a live 200 logged per provider/tier/lane + paid overflow
 > resolved; `github_models` reported UNVERIFIABLE because the upstream service
-> was retired 2026-07-30). Next: **S8.4** first live hunt (held — needs an
-> operator-authorized, in-scope target), **S8.5** war-room visual smoke
+> was retired 2026-07-30). **S8.4 is now build-complete:** a one-command
+> `main.py hunt` supervisor (preflight → Intigriti auto-fetch scope → init →
+> $0 dry-run → boot → operator-selected `--tools`, all egress-gated) plus an
+> honest pause/resume (`main.py resume`, `workspace/<p>/hunt_state.json`).
+> Next: **the first live DataCamp hunt** (operator-authorized; runbook in
+> `docs/examples/datacamp_intigriti.md`) + **S8.5** war-room visual smoke
 > (during S8.4).
 
 ---
@@ -69,15 +73,16 @@ All commands assume you are in the `Ult_harness/` repo root.
 ```bash
 cd Ult_harness
 python3 -m pytest tests/ -q
-# → 239 passed   (154 baseline: 104 S2 audit + 45 S3 core + 5 S4 E2E,
+# → 260 passed   (154 baseline: 104 S2 audit + 45 S3 core + 5 S4 E2E,
 #                 + 25 S5 router gates, + 20 S7 war-room gates,
-#                 + 5 S5b regression, + 23 S8.1 OOB, + 12 S8.2 empty-content)
+#                 + 5 S5b regression, + 23 S8.1 OOB, + 12 S8.2 empty-content,
+#                 + 21 S8.4 hunt launcher)
 ```
 
 - No venv, no network (the one health-check test targets a closed localhost
   port), no writes to the real `./workspace`.
 - The S4.3 live-Ollama round-trip test **auto-skips** if Ollama is down; the
-  other 153 pass regardless.
+  other 259 pass regardless.
 
 ### 3.2 Run the end-to-end dry-run (Gate S4.1 / Gate S6)
 
@@ -368,9 +373,11 @@ fetch script need keys.
 |---|---|
 | `OPERATIONS.md` | **This file.** The entry point. |
 | `specs/assembly_plan_v3.md` | The approved plan (S0–S7) + gate definitions + current status. |
-| `docs/hunt_cheatsheet.md` | **The hunt-day field manual** — step-by-step live run + pitfall/error table (incl. the Intigriti API path and the manual browser scope path for API-less platforms, e.g. YesWeHack). Read it on hunt day. |
+| `docs/hunt_cheatsheet.md` | **The hunt-day field manual** — one-command launch + pause/resume (§3.0, S8.4), step-by-step live run (fallback layer), pitfall/error table (incl. the Intigriti API path and the manual browser scope path for API-less platforms, e.g. YesWeHack). Read it on hunt day. |
 | `docs/scope_templates/` | Scope-file templates + field-mapping README (HackerOne CSV, Bugcrowd/YesWeHack JSON, canonical file with all four match types). |
-| `docs/examples/datacamp_intigriti.md` | Verified copy-paste setup for one real program (DataCamp, Intigriti): scope fetch → dry-run → init → live run → teardown. |
+| `docs/examples/datacamp_intigriti.md` | Verified copy-paste runbook for one real program (DataCamp, Intigriti): one-command `hunt` path up top, manual steps 0–7 as the fallback/understanding layer, pause/resume section, symptom table. |
+| `tools/registry.py` | The `hunt` tool registry — which components are launchable, how (cmd/needs/stdin), and why the disabled ones are disabled (S8.4). |
+| `orchestrator/hunt_launcher.py` | The `hunt`/`resume` supervisor — preflight, Intigriti auto-fetch, $0 dry-run gate, child boot, tool spawn, ordered teardown, `hunt_state.json` snapshot (S8.4). |
 | `docs/archive/legacy-v2/` | Archived v2.1.x doc corpus (10 files, incl. the phase-by-phase `progress_report.md`) — historical record, superseded; see its `README.md`. |
 | `docs/trust_audit.md` | S2 verification verdicts + the F1–F6 fixes + findings. |
 | `docs/provisioning.md` | Accounts, keys, hardware, and the S0.7 AMD check. |

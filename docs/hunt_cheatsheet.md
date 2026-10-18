@@ -8,8 +8,9 @@ Want the concrete copy-paste version for one real program?
 `docs/examples/datacamp_intigriti.md` — a verified step-by-step setup for
 DataCamp (Intigriti), from scope fetch to teardown.
 
-Read order on hunt day: §1 preflight → §2 scope intake → §3 live run →
-§5 levers (while it runs) → §4 only when something is wrong.
+Read order on hunt day: §1 preflight → §2 scope intake → §3.0 one-command
+launch (+ pause/resume) or §3 manual live run → §5 levers (while it runs) →
+§4 only when something is wrong.
 
 ## 0. What the harness actually is (60-second model)
 
@@ -25,9 +26,18 @@ the recon/exploit work and **call back** into the harness:
     Interactsh (OOB)  ──15s poll──>  admiral.poll_oob()   (blind confirmation)
     you (browser)     ── :8001/ ──  war room (state / findings / budget / routing)
 
+A **"component"** = one of the 8 external tools `scripts/fetch_components.sh`
+clones into the repo root as sibling dirs (`jsleak/`, `claude-bug-bounty/`,
+`adhd/`, `Agent-Reach/`, `Awesome-Redteam/`, `CL4R1T4S/`, `T3MP3ST/`,
+`mempalace/` — canonical list in `CREDITS.md`). The recon/exploit ones are
+what you point at in-scope targets; they egress through the proxy and call
+back with findings.
+
 So a "live hunt" = `main.py run` (spawns mitmdump `:8080` + uvicorn `:8001` +
 OOB poll loop) + the operator working the components + watching the war room.
-There is no autonomous one-click runner; the operator drives.
+Since S8.4 there is a one-command supervisor (`main.py hunt`, §3.0) that
+boots all of that and launches the components you select — the operator
+still drives (tool choice, targets, confirm/reject), the typing is gone.
 
 ## 1. Preflight (15 min, before every hunt)
 
@@ -36,8 +46,8 @@ There is no autonomous one-click runner; the operator drives.
        cd Ult_harness
        PYTHONPATH=.venv/lib/python3.13/site-packages python3 -m pytest tests/ -q
 
-   → expect `239 passed, 1 warning` (the warning is an unrelated
-   httpx2/Starlette note).
+   → expect `260 passed, 1 warning` (the warning is an unrelated
+   httpx2/Starlette note; the 21 extra tests cover the S8.4 hunt launcher).
 2. `.env` at repo root (gitignored; copy from `.env.example`). Minimum viable:
    - `GROQ_API_KEY` — the $0 workhorse (`gpt-oss-120b` primary,
      `qwen/qwen3.8-27b` heavy reasoning).
@@ -179,6 +189,62 @@ safer. Refine the vector **per finding** at submit time (impact statement in
 the report, final severity in the platform UI). The `cvss` lib (the
 `reporting` extra) is available if you want real score computation later.
 
+## 3.0 One-command launch (S8.4) — and pausing for a logout
+
+    cd Ult_harness
+    .venv/bin/python main.py hunt --platform intigriti --program <handle> \
+        --tools jsleak,cbb \
+        [--targets host1,host2] [--max-targets 3]
+
+`hunt` runs §3's manual sequence **for you**, in one foreground process:
+preflight (one-line `✗` on failure) → scope (Intigriti auto-fetch via the
+Researcher API when no `--scope-file` is given; other platforms need
+`--scope-file`) → `init` → **dry-run ($0 gate — non-$0 stops the command)**
+→ boots `run` as a child (its boot order and ordered teardown are reused
+untouched) → spawns your `--tools` with the `HARNESS_*`/proxy env injected.
+Ctrl-C tears down in order (tools first, then the control plane) and saves
+`workspace/<p>/hunt_state.json`. `--tools` omitted = control plane only.
+
+**The operator picks the tools per program scope** — that is the steering
+lever (cheatsheet §0: the control plane never scans). Registry
+(`tools/registry.py`):
+
+| key | what it is | how it launches |
+|---|---|---|
+| `jsleak` | JS secrets/links scanner (Go) | 1 process, in-scope URL list on stdin, `-json` (auto `go build` once) |
+| `cbb` | claude-bug-bounty ReAct agent (Python) | 1 agent **per `--targets` host** (default: first 3 exact-match hosts) |
+| `adhd` | ideation (aux) | disabled by default — needs a per-hunt prompt, not safe to auto-run |
+| `agent-reach` | OSINT daemon (aux) | disabled by default — not a target scanner in v1 |
+
+Corpora (`Awesome-Redteam/`, `CL4R1T4S/`) are reference material, not
+processes — they are not launchable by design. A tool that fails its own
+pre-check is **skipped with a note, the hunt continues** (fail-open).
+
+**Pausing (operator logout):** Ctrl-C at any time. It is an *honest* pause,
+not a suspended animation — a live hunt's state splits in two (verified
+against the code; there is no other persistence):
+
+* **Durable on disk** (survives): `reports/`, `evidence/`,
+  `logs/egress_proxy.jsonl`, `scope.json`, `platform_profile.json`.
+* **Volatile** (dies with the `run` process): the admiral's task/finding
+  maps, triage state, the token/budget ledger, the Interactsh session,
+  launched tool processes.
+
+`hunt_state.json` records both halves (`durable` snapshot +
+`volatilized_on_stop` list). To continue:
+
+    .venv/bin/python main.py resume --program <handle> --workspace ./workspace
+
+`resume` re-runs preflight → (re-)scope → init → dry-run → boot → the same
+tools/targets (CLI `--tools`/`--targets` override the saved selection).
+Guard rails: it **refuses to double-boot** if a control plane survived the
+logout and still serves `:8001` (prints the exact teardown), and it works
+after a hard logout too — the state file is written at boot and on every
+exit, with the control-plane pid, so there is always a resumable marker.
+
+The manual path below is the fallback / understanding layer: `hunt` runs
+exactly these steps.
+
 ## 3. The live run (step by step)
 
     cd Ult_harness
@@ -213,6 +279,9 @@ order if you need it.
   admiral skips new dispatches) and **confirm / reject** per finding.
 - Work the components — they egress through `:8080`; every request is
   scope-gated and logged to `workspace/<program>/logs/egress_proxy.jsonl`.
+  (`hunt` launches the ones you select from the registry — §3.0; manually
+  started components need the `HARNESS_*` exports, §2.5 of the DataCamp
+  example.)
 - Findings arrive at `POST /api/triage/callback` and walk
   RECEIVED → VALIDATING → CONFIRMED (or get noise-filtered / rejected).
 - Blind classes (SSRF / RCE / XXE) reach CONFIRMED **only** via an Interactsh
@@ -239,6 +308,11 @@ order if you need it.
 | Intigriti API 403 from the fetch script | Terms of engagement changed (re-accept in the Intigriti UI) **or** the 600-GETs/5-min rate limit | Re-accept ToE in the UI and retry; if rate-limited, wait ~5 min. Persistent 403/404 (beta API drift) → use the §2a manual browser path instead. |
 | `INTIGRITI_API_KEY` set but "not used" | By design — the control plane never calls platform APIs | The key only serves `scripts/fetch_intigriti_scope.py` (your scope export). If you don't hunt Intigriti, ignore it. It is never sent anywhere except `api.intigriti.com`. |
 | Component works fine standalone but ignores the harness | `HARNESS_*` env vars not exported (component-side wiring is env-gated + fail-open by design) | Run the component **under** `main.py run` (it exports them), or export `HARNESS_*` yourself for a manually-started component (see `patches/local-tweaks.md` §7). |
+| `hunt` exits 1 at preflight with a `✗` line | By design: the one-line reason is the whole problem | `mitmdump not found` → install mitmproxy in the venv. `already serving :8001` → a previous hunt/run is still up: tear it down (`main.py stop` order) or `resume` it. `no LLM backend` → check `.env` keys / Ollama. |
+| `resume` refuses: "no saved state" | The hunt never reached boot (state is written at boot + on every stop) | Re-run `hunt` — nothing to resume yet. |
+| `resume` refuses: "a control plane is already up on :8001" | Hard logout (SIGKILL) killed `hunt` but the child `run` survived, still holding `:8001`/`:8080` | Do the printed teardown (`kill <saved pid>` or `pgrep -f 'main.py run --program <p>'`), then re-run the same `resume`. |
+| `[hunt] note : <tool>: skipped — …` during boot | That tool failed its own pre-check (missing binary/deps) — fail-open by design | The hunt runs without it. Fix the tool (e.g. `go build` for jsleak, deps for cbb) and re-`hunt`/`resume` when you want it in. |
+| After `resume`, a blind finding can't confirm | Pause deregistered the Interactsh session — callbacks fired mid-gap never correlate | Stated honestly in `hunt_state.json` (`volatilized_on_stop`). Re-register the payload and re-send if the blind test still matters. |
 
 ## 5. Running it to full potential (the levers)
 

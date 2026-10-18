@@ -10,6 +10,13 @@ Commands
             → OpAdmiral → triage → reporting → mempalace write-back
           with --dry-run walking the entire graph on a sample hunt using
           mocked component calls (no packets, no LLM calls, no palace writes).
+  hunt  — one-command supervisor (S8.4): preflight → scope (Intigriti
+          auto-fetch) → init → dry-run ($0 gate) → boots `run` as a child →
+          launches the tools you list in --tools, all egressing through the
+          :8080 scope gate. Ctrl-C saves workspace/<p>/hunt_state.json and
+          tears down in order; resume it any time with `main.py resume`.
+  resume — rebuild a paused/ended hunt from its saved state (re-preflight,
+          re-init, re-dry-run, reboot, relaunch the same tools/targets).
   stop  — shut down an in-process run (single-process model; also prints the
           external-service teardown order for live multi-service setups).
 
@@ -65,6 +72,9 @@ SCOPED_PLATFORMS = (
     Platform.YESWEHACK,
     Platform.INTIGRITI,
 )
+
+# S8.4: tool keys advertised in `hunt --help` (registry is the source of truth).
+from tools.registry import ALL_KEYS as _TOOL_KEYS  # noqa: E402
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -480,10 +490,60 @@ def build_parser() -> argparse.ArgumentParser:
     p_run.add_argument("--workspace", default="./workspace")
     p_run.set_defaults(func=cmd_run)
 
+    p_hunt = sub.add_parser("hunt",
+                            help="one-command supervisor: preflight → scope → init "
+                                 "→ dry-run → boot + launch your --tools (S8.4)")
+    p_hunt.add_argument("--platform", choices=[p.value for p in Platform],
+                        help="program platform (intigriti auto-fetches scope "
+                             "when no --scope-file is given)")
+    p_hunt.add_argument("--program", required=True, help="program handle")
+    p_hunt.add_argument("--tools", default=None,
+                        help="comma list of registry keys — "
+                             + ", ".join(sorted(_TOOL_KEYS))
+                             + " — omit to boot the control plane only")
+    p_hunt.add_argument("--targets", default=None,
+                        help="comma list of in-scope hosts for per-target tools "
+                             "(default: first exact-match hosts, capped by "
+                             "--max-targets)")
+    p_hunt.add_argument("--max-targets", type=int, default=3,
+                        help="cap on auto-derived per-target hosts (default 3)")
+    p_hunt.add_argument("--scope-file", default=None,
+                        help="Bugcrowd-shaped scope JSON (Intigriti: omitted "
+                             "→ auto-fetched via the Researcher API)")
+    p_hunt.add_argument("--format", default=None,
+                        help="scope file format (inferred when omitted; "
+                             "Intigriti fetches are bugcrowd_json)")
+    p_hunt.add_argument("--workspace", default="./workspace")
+    p_hunt.add_argument("--researcher", default="onoffgrid")
+    p_hunt.add_argument("--skip-dry-run", action="store_true",
+                        help="skip the $0 dry-run gate (not recommended)")
+    p_hunt.set_defaults(func=cmd_hunt)
+
+    p_resume = sub.add_parser("resume",
+                              help="rebuild a paused hunt from workspace/<p>/hunt_state.json")
+    p_resume.add_argument("--program", required=True, help="program handle")
+    p_resume.add_argument("--workspace", default="./workspace")
+    p_resume.add_argument("--tools", default=None,
+                          help="override the saved tool selection")
+    p_resume.add_argument("--targets", default=None,
+                          help="override the saved per-target hosts")
+    p_resume.add_argument("--skip-dry-run", action="store_true")
+    p_resume.set_defaults(func=cmd_resume)
+
     p_stop = sub.add_parser("stop", help="print the live-service teardown order")
     p_stop.set_defaults(func=cmd_stop)
 
     return parser
+
+
+def cmd_hunt(args) -> int:
+    from orchestrator.hunt_launcher import cmd_hunt as _hunt
+    return _hunt(args)
+
+
+def cmd_resume(args) -> int:
+    from orchestrator.hunt_launcher import cmd_resume as _resume
+    return _resume(args)
 
 
 def cmd_run(args) -> int:

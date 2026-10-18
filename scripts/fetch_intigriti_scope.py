@@ -143,10 +143,21 @@ def _resolve_id(key: str, ident: str) -> str:
              f"to discover handles")
 
 
-def cmd_fetch(key: str, handle: str, out: str) -> int:
-    data = _get(key, f"/v1/programs/{_resolve_id(key, handle)}")
+def fetch_program(key: str, handle: str) -> dict:
+    """GET /v1/programs/{id} for a handle or GUID.
+
+    The importable fetch used by `main.py hunt` (the script CLI is unchanged).
+    """
+    return _get(key, f"/v1/programs/{_resolve_id(key, handle)}")
+
+
+def build_scope_payload(data: dict, handle: str) -> dict:
+    """Map a raw program GET response to the Bugcrowd-shaped scope file.
+
+    Pure function (no I/O) so both the script CLI and `main.py hunt` share
+    one mapping — the tier/match_type editorial calls live only here.
+    """
     domains = (data.get("domains") or {}).get("content") or []
-    roe = ((data.get("rulesOfEngagement") or {}).get("content") or {})
 
     targets, mobile = [], []
     for d in domains:
@@ -188,6 +199,17 @@ def cmd_fetch(key: str, handle: str, out: str) -> int:
                           .lower() != "no bounty"}
             for m in mobile
         ]
+
+    return payload
+
+
+def cmd_fetch(key: str, handle: str, out: str) -> int:
+    data = fetch_program(key, handle)
+    payload = build_scope_payload(data, handle)
+
+    n_in = sum(1 for t in payload["targets"] if t["in_scope"])
+    n_out = len(payload["targets"]) - n_in
+    roe = ((data.get("rulesOfEngagement") or {}).get("content") or {})
 
     out_path = Path(out)
     out_path.parent.mkdir(parents=True, exist_ok=True)

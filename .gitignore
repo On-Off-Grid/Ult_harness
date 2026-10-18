@@ -26,8 +26,13 @@ jsleak/
 mempalace/
 
 # Runtime state / local workspaces
+# (gitignore: no inline comments — they become part of the pattern)
 sessions/*.log
 workspace/*/logs/
+workspace/*/hunt_state.json
+workspace/*/.hunt_write_probe
+jsleak/bin/
+bin/jsleak
 *.pid
 *.sqlite
 *.db

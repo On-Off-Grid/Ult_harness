@@ -15,6 +15,55 @@ verified (scope fetched, dry-run walked, report landed). This file is
 - RoE mandates **no** special User-Agent or request headers, so the default
   attribution headers from `init` are all you need
 
+## The one-command path (S8.4 — start here)
+
+Preflight (Step 0) first, then the whole hunt is one command:
+
+```bash
+cd Ult_harness
+.venv/bin/python main.py hunt --platform intigriti --program datacamp \
+    --tools jsleak,cbb \
+    [--targets app.datacamp.com,www.datacamp.com]   # optional
+```
+
+That one line does Steps 1–5 automatically, in order:
+**preflight** (mitmdump/keys/workspace — one-line `✗` on failure) →
+**scope** (auto-fetches from the Intigriti Researcher API into
+`scope_files/datacamp.json`; re-verify the 26 against the program page on the
+first fetch of the day) → **init** → **dry-run** (must end **$0** or the
+command stops) → **boots the control plane** (`:8001` war room + `:8080`
+egress gate) → **launches your tools** (each egressing only through the
+scope gate). Ctrl-C tears everything down in order (tools first) and saves
+`workspace/datacamp/hunt_state.json`.
+
+- `--tools` — which components to launch (the operator's choice per program
+  scope): `jsleak` (JS secrets/links — one process over the whole scope
+  list), `cbb` (claude-bug-bounty agent — one per `--targets` host, default
+  the first 3 exact-match hosts), plus the optional aux `adhd`,
+  `agent-reach` (see "What is a component?" in Step 5). Omit `--tools` to
+  boot the control plane only.
+- `--targets host1,host2` — override the auto-derived per-target hosts.
+  The 26 rules include the wildcards `*.datacamp.com` /
+  `*.it.datacamp.com` which are **not** expanded (no subdomain enumeration
+  in-repo) — pass explicit subdomains you care about here.
+- **Pausing for a logout:** Ctrl-C at any time = graceful pause (ordered
+  teardown + state saved). Come back any time with:
+
+      .venv/bin/python main.py resume --program datacamp \
+          --workspace ./workspace
+
+  `resume` re-runs preflight → scope → init → dry-run → boot → the same
+  tools/targets. What survives the stop and what doesn't is stated honestly
+  in `workspace/datacamp/hunt_state.json` (`durable` = reports/evidence/
+  egress log on disk; `volatilized_on_stop` = in-memory tasks/triage/budget/
+  OOB session). If the old control plane somehow survived your logout,
+  `resume` detects it and tells you exactly how to tear it down instead of
+  double-booting.
+
+Below, the manual step-by-step (Steps 0–7) is kept as the **fallback and
+understanding layer** — the `hunt` command runs exactly these steps, and if
+anything automated looks wrong, drop into the manual path.
+
 ## Step 0 — Preflight (5 min, once per hunt day)
 
 ```bash
@@ -108,6 +157,18 @@ export HTTPS_PROXY=http://127.0.0.1:8080
 export NO_PROXY=localhost,127.0.0.1
 ```
 
+> **What's a "component"?** One of the 8 external recon/exploit tools
+> fetched into the repo root — `jsleak/`, `claude-bug-bounty/`, `adhd/`,
+> `Agent-Reach/`, plus the support tools `Awesome-Redteam/`, `CL4R1T4S/`,
+> `mempalace/`, `T3MP3ST/` (canonical list in `CREDITS.md`). The harness
+> itself **never scans**: the component does the probing, and the
+> `HARNESS_*` exports above + the `:8080` proxy wire it back in, so every
+> request is scope-gated and every finding is reported automatically.
+> `<your-component>` = whichever of these you're running now (each has its
+> own CLI — e.g. `jsleak` for JS secrets, `claude-bug-bounty` for general
+> recon). The `hunt` command (top of this file) does this export + launch
+> for you; the manual block is the fallback.
+
 Then point your recon/exploit components at the in-scope assets (26 rules;
 the two wildcards `*.datacamp.com` and `*.it.datacamp.com` cover most of
 them). Examples:
@@ -163,14 +224,18 @@ the $0.50 session line, your confirm/reject decisions recorded.
   English, no public PoC without consent, ~2-week response target, safe
   harbour applies. The harness does not enforce RoE — you do.
 
-## If something goes wrong (the five that matter for this run)
+## If something goes wrong (the ones that matter for this run)
 
 | Symptom | Fix |
 |---|---|
 | Fetch script 403 | ToE changed (re-accept in the Intigriti UI) **or** rate limit (600 GETs/5 min → wait ~5 min). Persistent 403/404 → copy the scope by hand into `scope_files/datacamp.json` (Bugcrowd shape) and re-init. |
 | `init` count ≠ program page | Scope drift — re-fetch, don't init. |
-| Dry-run budget > $0 | Stop — regression. Fix before live. |
+| Dry-run budget > $0 | Stop — regression. Fix before live. (`hunt` refuses to go live on its own.) |
 | `mitmdump not found` warning at boot | Egress unguarded — Ctrl-C, `pip install mitmproxy` in the venv, re-run. |
 | Blind finding stuck in VALIDATING | Check the Interactsh console for the callback; `INTERACTSH_MODE=off` means they *never* confirm (a deliberate choice). |
+| `hunt` stops at `[hunt] ✗` (preflight) | One-line reason is printed: mitmdump missing (install), `:8001` already serving (a previous hunt is still up — tear it down per `main.py stop`, or `resume` it), no LLM backend configured (check `.env`). |
+| `resume` says "no saved state" | The hunt never reached boot (state is written at boot and on every stop). Just re-run `hunt` — there is nothing to resume yet. |
+| `resume` says "a control plane is already up on :8001" | Your logout killed `hunt` but the child survived. It prints the exact teardown (`kill <pid>` / `pgrep -f 'main.py run --program datacamp'`); do that, then re-run the same `resume`. |
+| `[hunt] note : cbb: skipped — …` | That one tool failed its own pre-check (e.g. `agent.py --help` doesn't exit 0 — missing deps) — the hunt continues without it; fix the tool separately if you want it in. |
 
 Everything else is in `docs/hunt_cheatsheet.md` §4 (full symptom table).
