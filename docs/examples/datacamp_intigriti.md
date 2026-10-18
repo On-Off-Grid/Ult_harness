@@ -50,10 +50,11 @@ file on purpose (not egress-able) and are listed under
 ## Step 2 — Rehearse the graph (dry-run in a scratch workspace: zero packets, zero cost)
 
 ```bash
-W=$(mktemp -d /tmp/dc.XXXXXX)
+W=$(mktemp -d /tmp/dc.XXXXXX)          # if $W is empty when you type this, init
+                                        # now fails fast with a clear [init] error
 .venv/bin/python main.py init --platform intigriti --program datacamp \
     --scope-file scope_files/datacamp.json --format bugcrowd_json \
-    --researcher <your-intigriti-handle> --workspace "$W/ws"
+    --workspace "$W/ws"                 # --researcher defaults to onoffgrid
 .venv/bin/python main.py run --program datacamp --dry-run --workspace "$W/ws"
 ls "$W/ws/datacamp/reports/"     # → 1 mock report
 rm -rf "$W"
@@ -73,13 +74,14 @@ Expect the walk to end with:
 ```bash
 .venv/bin/python main.py init --platform intigriti --program datacamp \
     --scope-file scope_files/datacamp.json --format bugcrowd_json \
-    --researcher <your-intigriti-handle> --workspace ./workspace
+    --workspace ./workspace             # --researcher defaults to onoffgrid
 ```
 
 Expect `in-scope: 26 rule(s) / out-of-scope: 0 rule(s)`. Creates
 `workspace/datacamp/` with: `scope.json` (the rules the egress gate enforces),
-`headers.txt` (attribution — `X-Intigriti-Researcher: <you>` +
-`User-Agent: Mozilla/5.0 (BugBounty; intigriti/<you>)`),
+`headers.txt` (attribution — `X-Intigriti-Researcher: onoffgrid` +
+`User-Agent: Mozilla/5.0 (BugBounty; intigriti/onoffgrid)`; use
+`--researcher <other>` to override),
 `platform_profile.json`, and `logs/ reports/ evidence/`.
 
 ## Step 4 — Live run (terminal 1)

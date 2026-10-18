@@ -100,7 +100,7 @@ JSON
 
 # 2) init + dry-run
 python3 main.py init --platform hackerone --program acme-corp \
-    --scope-file "$WORK/scope.json" --researcher operator --workspace "$WORK/ws"
+    --scope-file "$WORK/scope.json" --workspace "$WORK/ws"
 python3 main.py run  --program acme-corp --dry-run --workspace "$WORK/ws"
 
 # 3) confirm the report landed

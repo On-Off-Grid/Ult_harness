@@ -86,11 +86,12 @@ field-mapping README) live in `docs/scope_templates/`:
    → WILDCARD, anything else → EXACT; `category` → description; extra keys
    (like the template's `_comment` block) are ignored by the importer.
 4. Run `init` with the **platform tag matching the program** — it sets the
-   attribution header (`X-YesWeHack-User`, `X-Intigriti-Researcher`, …):
+   attribution header (`X-YesWeHack-User`, `X-Intigriti-Researcher`, …).
+   `--researcher` defaults to `onoffgrid` (the cross-platform handle):
 
        .venv/bin/python main.py init --platform yeswehack \
            --program <handle> --scope-file scope.json \
-           --format bugcrowd_json --researcher <you> --workspace ./workspace
+           --format bugcrowd_json --workspace ./workspace
 
 5. **Verify the counts against the program page** — `init` prints the
    in/out-of-scope rule counts; if they disagree, stop and fix the file
@@ -132,8 +133,7 @@ Intigriti's beta Researcher API covers scope end-to-end via the script
     .venv/bin/python scripts/fetch_intigriti_scope.py list     # your programs: handle + id
     .venv/bin/python scripts/fetch_intigriti_scope.py <handle> -o scope.json
     .venv/bin/python main.py init --platform intigriti --program <handle> \
-        --scope-file scope.json --format bugcrowd_json \
-        --researcher <you> --workspace ./workspace
+        --scope-file scope.json --format bugcrowd_json --workspace ./workspace
 
 - `list` → `GET /v1/programs` (Bearer `INTIGRITI_API_KEY` from `.env`);
   fetch → `GET /v1/programs/{id}` (domains + rules of engagement). Rate
@@ -183,7 +183,7 @@ the report, final severity in the platform UI). The `cvss` lib (the
 
     cd Ult_harness
     .venv/bin/python main.py init  --platform <p> --program <handle> \
-        --scope-file <file> --researcher <you> --workspace ./workspace
+        --scope-file <file> --workspace ./workspace     # --researcher defaults to onoffgrid
     .venv/bin/python main.py run   --program <handle> --workspace ./workspace
 
 `run` (no `--dry-run`) does, in order:

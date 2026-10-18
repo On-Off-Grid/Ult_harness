@@ -204,7 +204,7 @@ def cmd_fetch(key: str, handle: str, out: str) -> int:
     print(f"[ok] wrote          : {out}")
     print("\nNext:  .venv/bin/python main.py init --platform intigriti "
           f"--program {handle} --scope-file {out} "
-          "--format bugcrowd_json --researcher <you> --workspace ./workspace")
+          "--format bugcrowd_json --workspace ./workspace")
     return 0
 
 

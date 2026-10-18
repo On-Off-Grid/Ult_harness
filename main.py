@@ -114,9 +114,17 @@ def cmd_init(args) -> int:
     scope = _parse_scope(args)
 
     workspace = Path(args.workspace) / scope.program_handle
-    (workspace / "logs").mkdir(parents=True, exist_ok=True)
-    (workspace / "reports").mkdir(parents=True, exist_ok=True)
-    (workspace / "evidence").mkdir(parents=True, exist_ok=True)
+    try:
+        (workspace / "logs").mkdir(parents=True, exist_ok=True)
+        (workspace / "reports").mkdir(parents=True, exist_ok=True)
+        (workspace / "evidence").mkdir(parents=True, exist_ok=True)
+    except (PermissionError, FileNotFoundError, OSError) as exc:
+        raise SystemExit(
+            f"[init] cannot create workspace at '{workspace}' ({exc.__class__.__name__}: "
+            f"{exc}). Check that --workspace points to a path you can write to — "
+            f"an empty or unset shell variable in --workspace '<var>/ws' silently "
+            f"becomes the filesystem root. Use --workspace ./workspace."
+        ) from None
 
     # Platform profile → header export (single source of truth, design v2.1 §1.4)
     headers = PlatformHeaders.for_platform(platform, args.researcher)
@@ -458,8 +466,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_init.add_argument("--format", default=None,
                         help="hackerone_csv | bugcrowd_json | yeswehack_json | intigriti_json "
                              "(inferred from extension when omitted)")
-    p_init.add_argument("--researcher", default="researcher",
-                        help="researcher username for platform attribution headers")
+    p_init.add_argument("--researcher", default="onoffgrid",
+                        help="researcher username for platform attribution headers "
+                             "(default: onoffgrid — the cross-platform handle)")
     p_init.add_argument("--workspace", default="./workspace")
     p_init.set_defaults(func=cmd_init)
 
