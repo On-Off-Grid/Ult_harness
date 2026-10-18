@@ -5,7 +5,8 @@ program: **DataCamp** on Intigriti
 (`app.intigriti.com/researcher/programs/datacamp/datacamp/detail`).
 Every command below was run against the live program on 2026-10-18 and
 verified (scope fetched, dry-run walked, report landed). This file is
-*what to type*; the cheat sheet is *why*.
+*what to type*; the cheat sheet is *why*; `docs/hunt_workflow.md` is the
+mental model (how the component repos fit together and who orchestrates whom).
 
 **Program facts (from the Researcher API, 2026-10-18):**
 

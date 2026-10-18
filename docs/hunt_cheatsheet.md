@@ -8,6 +8,9 @@ Want the concrete copy-paste version for one real program?
 `docs/examples/datacamp_intigriti.md` — a verified step-by-step setup for
 DataCamp (Intigriti), from scope fetch to teardown.
 
+Want the mental model — how the 8 component repos fit together, who
+orchestrates whom, and what's wired vs. designed? `docs/hunt_workflow.md`.
+
 Read order on hunt day: §1 preflight → §2 scope intake → §3.0 one-command
 launch (+ pause/resume) or §3 manual live run → §5 levers (while it runs) →
 §4 only when something is wrong.

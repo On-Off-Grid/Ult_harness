@@ -374,6 +374,7 @@ fetch script need keys.
 | `OPERATIONS.md` | **This file.** The entry point. |
 | `specs/assembly_plan_v3.md` | The approved plan (S0–S7) + gate definitions + current status. |
 | `docs/hunt_cheatsheet.md` | **The hunt-day field manual** — one-command launch + pause/resume (§3.0, S8.4), step-by-step live run (fallback layer), pitfall/error table (incl. the Intigriti API path and the manual browser scope path for API-less platforms, e.g. YesWeHack). Read it on hunt day. |
+| `docs/hunt_workflow.md` | **The mental model** — the 3 kinds of git repo (control plane vs. the 8 fetched components vs. services), the process/port map, the end-to-end hunt workflow, the component→harness contract (3 channels), the admiral's two modes, how components interact with each other (mempalace hub), and the honest "wired vs. designed" split (the open finding-bridge). |
 | `docs/scope_templates/` | Scope-file templates + field-mapping README (HackerOne CSV, Bugcrowd/YesWeHack JSON, canonical file with all four match types). |
 | `docs/examples/datacamp_intigriti.md` | Verified copy-paste runbook for one real program (DataCamp, Intigriti): one-command `hunt` path up top, manual steps 0–7 as the fallback/understanding layer, pause/resume section, symptom table. |
 | `tools/registry.py` | The `hunt` tool registry — which components are launchable, how (cmd/needs/stdin), and why the disabled ones are disabled (S8.4). |
