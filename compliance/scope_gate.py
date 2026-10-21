@@ -48,11 +48,28 @@ _DNS_REBIND_IPS: List[ipaddress._BaseNetwork] = [
     ipaddress.ip_network("169.254.0.0/16"),
 ]
 
-# OSINT domains that are ALWAYS allowed (primary gate).[cite:1]
+# OSINT / passive-recon domains that are ALWAYS allowed (primary gate).[cite:1]
+#
+# These are well-known, program-agnostic intelligence sources the tooling
+# queries to ENUMERATE a scope — they are never the target itself, so they are
+# hard-allowed independent of any program's scope. Without this, a correctly
+# enforced scope would drop every recon source and the recon phase would return
+# nothing. Kept as a fixed, universal list (not per-program) so it stays
+# generic across platforms; extend it as new passive sources are adopted.
 _OSINT_ALLOWLIST: Set[str] = {
+    # Passive CT / history / DNS intelligence
+    "crt.sh", "www.crt.sh",
+    "web.archive.org",
+    "pdtm.sh", "api.pdtm.sh",
+    "urlscan.io", "api.urlscan.io",
+    "dnsdumpster.com",
+    # Public code / gist search (leaked secrets, host discovery)
+    "github.com", "www.github.com",
+    "api.github.com", "raw.githubusercontent.com",
+    "objects.githubusercontent.com", "gist.github.com",
+    # Pre-existing always-allow OSINT / metadata sources
     "api.twitter.com",
     "oauth.reddit.com",
-    "api.github.com",
     "www.googleapis.com",
 }
 

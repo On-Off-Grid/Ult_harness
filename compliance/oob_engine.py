@@ -41,6 +41,7 @@ import logging
 import random
 import re
 import string
+import time
 import uuid
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
@@ -55,6 +56,15 @@ HttpFn = Callable[..., Awaitable[Tuple[int, Dict[str, Any]]]]
 # Public Interactsh: the HTTP API and the callback wildcard live on oast.pro.
 PUBLIC_API_URL = "https://oast.pro"
 PUBLIC_BASE_DOMAIN = "oast.pro"
+
+# How often an UNREGISTERED public-mode session retries a fresh register. The
+# public service keys anonymous sessions by the CLIENT IP (not the User-Agent),
+# so a stale session left behind by a killed hunt keeps rejecting new registers
+# with 400 "correlation-id provided already exists" until it expires
+# server-side. Retrying on this cadence is the self-heal: it costs one small
+# POST /register per interval, stays quiet on failure, and succeeds the moment
+# the stale IP-keyed slot frees up. (Selfhosted mode has no such contention.)
+REREGISTER_RETRY_SECONDS = 90.0
 
 
 def _host_of(url: str) -> str:
@@ -130,17 +140,24 @@ class OOBEngine:
             or (_host_of(self.interactsh_url) if self.mode == "selfhosted" else "")
             or PUBLIC_BASE_DOMAIN
         )
-        # The public Interactsh service keys sessions by User-Agent: a stale
-        # session under a SHARED UA makes every new POST /register answer 400
-        # "correlation-id provided already exists". A per-instance UA keeps
-        # each hunt's session disjoint; init() rotates it once if a stale
-        # session still blocks the register.
+        # Session identity on the public Interactsh service. Two things matter:
+        #  * anonymous sessions are keyed by the CLIENT IP — a stale session
+        #    left by a previously-killed hunt (whose token is unrecoverable)
+        #    keeps rejecting new registers with 400 "correlation-id provided
+        #    already exists" until it expires server-side; this is why the
+        #    receive loop retries a register (``maintain()``) instead of
+        #    giving up at boot;
+        #  * the User-Agent is a per-instance marker (``ult-harness/3.0/<12
+        #    hex>``) so concurrent hunts are distinguishable in the service's
+        #    audit logs. It is NOT a reliable session key on its own — rotating
+        #    it does not clear an IP-keyed stale session.
         self._ua = f"ult-harness/3.0/{uuid.uuid4().hex[:12]}"
         self.session_id: Optional[str] = None      # == collision token once registered
         self.collaborator: Optional[str] = None
         self.collision_token: Optional[str] = None
         self.callback_domain: Optional[str] = None  # "<token>.<base_domain>"
         self._closed = False
+        self._last_reregister: float = 0.0         # monotonic time of last register attempt
         self._embedded: List[Dict[str, Any]] = []  # {"url", "host", "context"}
         self._claimed: set = set()                  # payload hosts already attributed
         self._all: List[OOBCallback] = []           # every interaction ever seen
@@ -177,47 +194,80 @@ class OOBEngine:
         placeholders and ``poll_callbacks()`` returns [].
 
         Stale-session recovery: the public service rejects a register while a
-        session under the SAME User-Agent is still alive ("correlation-id
-        provided already exists", HTTP 400). On that exact error the UA is
-        rotated once and the register retried — a fresh UA is always a fresh
-        session, so this is generic (no program/platform coupling).
+        session for this CLIENT is already alive ("correlation-id provided
+        already exists", HTTP 400). On that exact error we rotate the UA once
+        and retry immediately; if the slot is still held (a stale session keyed
+        by the client IP from a previously-killed hunt), we stay unregistered
+        and ``maintain()`` (the hunt's poll loop) retries on a throttle until
+        the stale session lapses server-side — a fresh register then succeeds.
         """
         if not self.enabled or self.initialized or self._closed:
             return
-        for attempt in (1, 2):
-            try:
-                status, body = await self.http(
-                    "POST", f"{self._api_base()}/register", self._headers(), {}, 15,
-                )
-            except Exception as exc:
-                logger.warning(f"oob: register failed ({exc}) — OOB fail-open")
-                return
-            body = body if isinstance(body, dict) else {}
-            data = body.get("data") if isinstance(body.get("data"), dict) else {}
-            collab = body.get("collaborator") or data.get("collaborator")
-            token = body.get("collaborator_token") or data.get("collaborator_token")
-            if status == 200 and collab and token:
-                break
-            blob = json.dumps(body).lower()
-            if attempt == 1 and status == 400 and "already exists" in blob:
-                logger.info(
-                    "oob: stale Interactsh session under this UA "
-                    f"({body!r}) — rotating UA and retrying once"
-                )
-                self._new_ua()
-                continue
-            # Attempt 2 failed (or the rotated UA hit a different error):
-            # the loop body always breaks on success or returns on final
-            # failure, so we never fall through without collab/token.
-            logger.warning(
-                f"oob: register HTTP {status} (got {body!r}) — OOB fail-open"
+        self._last_reregister = time.monotonic()
+        status = await self._register_once()
+        if status == "stale":
+            # One immediate retry under the rotated UA (covers a *concurrent*
+            # live hunt); a still-held IP-keyed slot is left to maintain().
+            await self._register_once()
+
+    async def _register_once(self) -> str:
+        """A single POST /register attempt. Returns:
+
+        ``"registered"`` a session is now live;
+        ``"stale"``      the service says a session already exists (client IP
+                         still holds one) — the UA is rotated so concurrent
+                         hunts stay distinguishable, and the caller/maintain()
+                         retries;
+        ``"error"``      anything else (network, 5xx, 403, …) — fail-open.
+
+        Never raises, and stays quiet (``logger.debug``) on failure: an
+        unregistered OOB session is an expected transient state, not an error
+        worth logging every interval.
+        """
+        self._last_reregister = time.monotonic()  # throttle on the attempt time
+        try:
+            status, body = await self.http(
+                "POST", f"{self._api_base()}/register", self._headers(), {}, 15,
             )
+        except Exception as exc:
+            logger.debug(f"oob: register attempt failed ({exc}) — unregistered")
+            return "error"
+        body = body if isinstance(body, dict) else {}
+        data = body.get("data") if isinstance(body.get("data"), dict) else {}
+        collab = body.get("collaborator") or data.get("collaborator")
+        token = body.get("collaborator_token") or data.get("collaborator_token")
+        if status == 200 and collab and token:
+            self.collaborator = str(collab)
+            self.collision_token = str(token)
+            self.session_id = self.collision_token
+            self.callback_domain = f"{self.collision_token}.{self.base_domain}"
+            logger.info(f"oob: registered session on {self.callback_domain}")
+            return "registered"
+        blob = json.dumps(body).lower()
+        if status == 400 and "already exists" in blob:
+            self._new_ua()
+            logger.debug("oob: register 400 (session already exists) — UA "
+                         "rotated; will retry via maintain()")
+            return "stale"
+        logger.debug(f"oob: register HTTP {status} (got {body!r}) — unregistered")
+        return "error"
+
+    async def maintain(self) -> None:
+        """Receive-loop keep-alive: while we have NO live session, retry a
+        register on a throttle (default :data:`REREGISTER_RETRY_SECONDS`).
+
+        This is the self-heal for the public service's IP-keyed stale session:
+        boot's ``init()`` may have been blocked by a session a previously-killed
+        hunt left behind, and that slot only frees up once the server's TTL
+        lapses. Retrying every ~90 s (quiet, one small POST) means a hunt that
+        starts with OOB blocked self-registers the moment the slot frees — no
+        operator action. Does nothing when already registered / disabled /
+        closed, and never raises (``_register_once`` is fail-open)."""
+        if not self.enabled or self._closed or self.initialized:
             return
-        self.collaborator = str(collab)
-        self.collision_token = str(token)
-        self.session_id = self.collision_token
-        self.callback_domain = f"{self.collision_token}.{self.base_domain}"
-        logger.info(f"oob: registered session on {self.callback_domain}")
+        if time.monotonic() - self._last_reregister < REREGISTER_RETRY_SECONDS:
+            return
+        await self._register_once()
 
     async def close(self) -> None:
         """DELETE /deregister. Fail-open + idempotent."""

@@ -23,15 +23,30 @@ it, and what is still open.**
 > advisory), stale generated scope caches re-fetch automatically, and OOB
 > self-heals from stale public-Interactsh sessions (per-instance UA + one
 > rotated-UA retry on the exact "already exists" 400, fail-open kept).
-> Suite: **294 tests all green** (1 warning, unrelated httpx2/Starlette
+> **A second 2026-10-21 live-hunt health scan (Debug log 3) fixed four more
+> generic defects:** cbb now launches the working `tools/hunt.py` recon+scan
+> pipeline instead of the dead ReAct entry `agent.py` (root cause: a lazy load
+> of a root `hunt.py` the pinned fork dropped; `agent.py --help` passed the
+> old preflight falsely); jsleak's stdin is normalized to `https://…` (bare
+> hosts made it a silent exit-0 no-op: `unsupported protocol scheme ""`); the
+> live egress gate is now actually pointed at the program's scope
+> (`HARNESS_SCOPE_FILE` = `workspace/<p>/scope.json`, normalized-format parser
+> added — previously the gate ran on the permissive `*` dev wildcard and
+> enforced nothing), with passive recon sources (crt.sh / web.archive.org /
+> pdtm.sh / GitHub) on the OSINT allowlist so recon still reaches origin; and
+> OOB re-registers on a ~90 s throttle (`OOBEngine.maintain()` in the poll
+> loop) because the public Interactsh keys anonymous sessions by **client IP**
+> (proven: two fresh UAs both 400), so a session left by a killed hunt blocks
+> boot's register until its TTL lapses and the throttle self-heals.
+> Suite: **307 tests all green** (1 warning, unrelated httpx2/Starlette
 > note). **S5b live provider verification PASSED post top-up** (5/6 enabled
 > providers returned a live 200 logged per provider/tier/lane + paid
 > overflow resolved; `github_models` reported UNVERIFIABLE because the
 > upstream service was retired 2026-07-30).
 > Next: **the live UZ Leuven hunt, restarted** on the new path (`main.py
 > hunt uzleuven`; runbook in `docs/examples/uzleuven_intigriti.md` —
-> verified 2026-10-19, live-hunt defects + fixes logged 2026-10-21) +
-> **S8.5** war-room visual smoke (during the hunt).
+> verified 2026-10-19, live-hunt defects + fixes logged 2026-10-21 incl.
+> Debug log 3) + **S8.5** war-room visual smoke (during the hunt).
 
 ---
 
@@ -83,21 +98,26 @@ All commands assume you are in the `Ult_harness/` repo root.
 ```bash
 cd Ult_harness
 .venv/bin/python -m pytest tests/ -q
-# → 294 passed   (154 baseline: 104 S2 audit + 45 S3 core + 5 S4 E2E,
+# → 307 passed   (154 baseline: 104 S2 audit + 45 S3 core + 5 S4 E2E,
 #                 + 25 S5 router gates, + 20 S7 war-room gates,
 #                 + 5 S5b regression, + 23 S8.1 OOB, + 12 S8.2 empty-content,
 #                 + 21 S8.4 hunt launcher, + 13 UZ Leuven scope pipeline,
-#                 + 21 hunt-automation fixes 2026-10-21: OOB stale-session
-#                   UA rotation, RoE header merge through init, bare
-#                   `hunt <handle>` platform/tools defaults, stale
-#                   scope-cache refresh)
+#                 + 21 hunt-automation fixes 2026-10-21 (Debug log 2): OOB
+#                   stale-session UA rotation, RoE header merge through init,
+#                   bare `hunt <handle>` platform/tools defaults, stale
+#                   scope-cache refresh,
+#                 + 13 live-hunt health fixes 2026-10-21 (Debug log 3): cbb
+#                   → tools/hunt.py, jsleak stdin https:// normalization,
+#                   egress gate pointed at the real scope (normalized_json
+#                   parser + recon-source OSINT allowlist), OOB maintain()
+#                   IP-keyed re-registration)
 ```
 
 - Venv python (fastapi/uvicorn/pytest live there), no network (the one
   health-check test targets a closed localhost port), no writes to the real
   `./workspace`.
 - The S4.3 live-Ollama round-trip test **auto-skips** if Ollama is down; the
-  other 293 pass regardless.
+  other 306 pass regardless.
 
 ### 3.2 Run the end-to-end dry-run (Gate S4.1 / Gate S6)
 
@@ -303,15 +323,19 @@ Be explicit about these — do not paper over them.
 
 **S8.4 + the first live hunt — updated 2026-10-21.** The first live UZ
 Leuven hunt ran and exposed three live-only defects, all fixed generically
-(no program-specific code) and pinned by tests — suite now **294**:
+(no program-specific code) and pinned by tests; a second live-hunt health
+scan (Debug log 3) fixed four more — suite now **307**:
 
 1. **OOB stale-session collision.** The public Interactsh service keys
-   sessions by User-Agent; the engine's fixed `ult-harness/3.0` UA still had
-   a live same-day session, so every `POST /register` answered 400
-   "correlation-id provided already exists" and OOB stayed unregistered
-   (blind classes could never confirm). Fix: unique per-instance UA
-   (`ult-harness/3.0/<12-hex>`) + exactly one retry with a rotated UA on
-   that exact error; fail-open preserved. (`compliance/oob_engine.py`,
+   anonymous sessions by the **client IP** (confirmed: direct curl with two
+   fresh User-Agents both answered the same 400), not the UA. The engine's
+   first fix (per-instance UA `ult-harness/3.0/<12-hex>` + one rotated-UA
+   retry on the exact 400) did NOT clear a stale session left by a
+   previously-killed hunt, because that slot is IP-keyed. Final fix:
+   `OOBEngine.maintain()` re-registers on a ~90 s throttle while
+   unregistered (quiet) and is driven from the OOB poll loop, so a hunt that
+   boots OOB-blocked self-registers once the stale session's server-side TTL
+   lapses. Fail-open preserved. (`compliance/oob_engine.py`, `main.py`,
    `tests/test_s2_header_oob.py`.)
 2. **RoE attribution header missing from `headers.txt`.** UZ Leuven's RoE
    mandates `X-Intigriti-Username: {Username}`; previously that was a manual
@@ -337,10 +361,53 @@ Leuven hunt ran and exposed three live-only defects, all fixed generically
    (`main.py`, `orchestrator/hunt_launcher.py`, `tools/registry.py`,
    `tests/test_s8_hunt_launcher.py`, `tests/test_s3_main.py`.)
 
-Runbook: `docs/examples/uzleuven_intigriti.md` (debug log 2 records this
-pass). The live hunt must be **restarted** on the new path (`main.py hunt
-uzleuven`) for the fixes to take effect; the old `run`-only process predates
-them.
+**Debug log 3 — second live-hunt health scan (2026-10-21).** A follow-up live
+hunt (control plane up, all four tool processes dead) exposed four more
+defects. Each root cause was reproduced manually before touching code; every
+fix is generic (no program/platform coupling) and pinned by the suite.
+(Deaths were invisible because tool stdout goes to `DEVNULL` — capturing
+per-tool logs is the natural next step.)
+
+4. **cbb ×3 exit 1.** The registry launched `agent.py --target <host>` (the
+   ReAct entry), which is dead in the pinned fork (`claude-bug-bounty` @
+   b2e9eb7): its lazy `_h()` loads a root `hunt.py` the fork dropped and calls
+   a `run_*`/`_activate_recon_session` API `tools/hunt.py` no longer has →
+   `FileNotFoundError` at hunt start. `agent.py --help` still exits 0, so the
+   old `--help` preflight passed falsely. Fix: launch the working pipeline
+   entry `python tools/hunt.py --target <host>` (subfinder/crt.sh/wayback/
+   katana/httpx/nmap/nuclei) and gate the preflight on that **same** entry.
+   Harness-side registry change only; the component is untouched.
+   (`tools/registry.py`, `tests/test_s8_hunt_launcher.py`.)
+5. **jsleak exit 0 (silent no-op).** It was fed bare hosts on stdin; it fetches
+   each line with an HTTP client, so a schemeless line is `unsupported protocol
+   scheme ""` and the run "succeeds" while scanning nothing. Fix: normalize
+   every stdin line to `https://…` at the single choke point in `spawn_tools`
+   (covers the derived scope list **and** an explicit `--targets`).
+   (`orchestrator/hunt_launcher.py`, `tests/test_s8_hunt_launcher.py`.)
+6. **Egress gate was a no-op.** `_spawn_egress_proxy` never set
+   `HARNESS_SCOPE_FILE`, so the mitmdump addon fell to the permissive `*` dev
+   wildcard and enforced nothing beyond the hardcoded DNS-rebind/third-party
+   rules (evidence: `api.pdtm.sh` ALLOWed; the live mitmdump's
+   `/proc/…/environ` had no `HARNESS_SCOPE_FILE`). Fix: `run`/`hunt` now pass
+   `HARNESS_SCOPE_FILE=workspace/<p>/scope.json` + `HARNESS_SCOPE_FORMAT=
+   normalized_json`; a normalized-format parser
+   (`ScopeImporter.parse_workspace_json`) + `detect_format()` were added; the
+   loader keeps a workspace-derivation fallback and a loud WARNING when it
+   would otherwise run on the wildcard. The OSINT allowlist gained the passive
+   recon sources (crt.sh, web.archive.org, pdtm.sh/api.pdtm.sh, the GitHub
+   family) so recon still reaches origin under a real scope. Known documented
+   limitation: raw-TCP tools (nmap) bypass the HTTP egress proxy.
+   (`main.py`, `compliance/scope_importer.py`, `compliance/scope_gate.py`,
+   `compliance/egress_proxy.py`, `tests/test_s2_egress_proxy.py`,
+   `tests/test_s2_scope_gate.py`, `tests/test_s8_hunt_launcher.py`.)
+7. **OOB 400 "already exists" persisted across fresh UAs** — see item 1 for
+   the IP-keyed root cause and the `maintain()` self-heal. (`main.py` OOB poll
+   loop, `tests/test_s2_header_oob.py`.)
+
+Runbook: `docs/examples/uzleuven_intigriti.md` (debug log 2 records the first
+pass, debug log 3 records this health scan). The live hunt must be
+**restarted** on the new path (`main.py hunt uzleuven`) for the fixes to take
+effect; the old `run`-only process predates them.
 
 **S8 is in progress — S8.1 + S8.2 + S8.3 done, S8.4 (first live hunt) next
 (2026-10-17).** S0–S7 are done and the control plane is proven to *run*; it is

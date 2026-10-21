@@ -40,7 +40,7 @@ Two consequences of that split:
 | Repo | Language | Role | Hunt-time role | `hunt --tools`? |
 |---|---|---|---|---|
 | `jsleak/` | Go | JS secrets & links scanner | **Scanner** — reads the in-scope URL list on stdin, one process covers the whole scope | ✅ enabled |
-| `claude-bug-bounty/` | Python | ReAct recon agent (the On-Off-Grid fork) | **Agent** — one long-running LLM agent per target host | ✅ enabled |
+| `claude-bug-bounty/` | Python | Recon + vuln-scan pipeline (the On-Off-Grid fork) | **Agent** — one long-running pipeline per target host via `tools/hunt.py --target` (the ReAct entry `agent.py` is broken in the pinned fork) | ✅ enabled |
 | `adhd/` | Node/TS | Divergent ideation (tree-of-thought) | **Aux** — advisory brainstorm, no target flag | ⛔ disabled (needs a per-hunt prompt; not safe to auto-run) |
 | `Agent-Reach/` | Python | OSINT daemon | **Aux** — not a target scanner in v1 | ⛔ disabled (not pip-installed) |
 | `Awesome-Redteam/` | — (markdown) | Playbooks & payload cheatsheets | **Corpus** — reference material, ingested; never a process | n/a |

@@ -42,6 +42,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import signal
 import subprocess
@@ -344,6 +345,28 @@ def derive_targets(scope: TargetScope, max_targets: int) -> tuple:
 # tool spawning
 # ═══════════════════════════════════════════════════════════════════════════
 
+# A bare host/URL that jsleak-style stdin tools must be able to resolve. The
+# scanner fetches each line with an HTTP client, so a schemeless line
+# ("host", "host/path") fails with `unsupported protocol scheme ""` and the
+# tool silently no-ops (exit 0) — which looked like a "clean" run while it
+# scanned nothing. Normalizing at this single choke point covers BOTH the
+# derived scope list and an explicit `--targets` list.
+_SCHEME_RE = re.compile(r"^[a-zA-Z][a-zA-Z0-9+.\-]*://")
+
+
+def _normalize_target_url(line: str) -> str:
+    """Return ``line`` as a fetchable URL (``https://`` for schemeless hosts).
+
+    Lines that already carry a scheme are returned unchanged; whitespace is
+    stripped. This is deliberately format-agnostic (it does not parse the
+    host, only the scheme) so it works for every program/platform scope.
+    """
+    s = (line or "").strip()
+    if not s or _SCHEME_RE.match(s):
+        return s
+    return "https://" + s
+
+
 @dataclass
 class ToolProc:
     key: str
@@ -384,7 +407,9 @@ def spawn_tools(*, keys: List[str], per_target: List[str], scope_urls: List[str]
             cmd = [part.format(target=t, python=_pick_python()) for part in spec.cmd]
             stdin_data = None
             if spec.stdin_kind == "scope_urls" and not spec.per_target:
-                stdin_data = "\n".join(scope_urls) + "\n"
+                # Normalize every line to a fetchable URL (jsleak fails with
+                # "unsupported protocol scheme" — and exits 0 — on bare hosts).
+                stdin_data = "\n".join(_normalize_target_url(u) for u in scope_urls) + "\n"
             proc = subprocess.Popen(
                 cmd, cwd=cwd, env=env, start_new_session=True,
                 stdin=subprocess.PIPE if stdin_data else subprocess.DEVNULL,

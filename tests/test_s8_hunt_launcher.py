@@ -141,6 +141,26 @@ def test_enabled_keys_are_the_bare_hunt_default():
     assert reg.resolve_keys(",".join(reg.ENABLED_KEYS)) == reg.ENABLED_KEYS
 
 
+def test_cbb_spec_launches_the_working_hunt_pipeline():
+    # The ReAct entry (agent.py) is dead in the pinned fork — `agent.py
+    # --help` exits 0 but the tool crashes on arrival (it lazy-loads a root
+    # hunt.py that no longer exists). The working, per-target entry is the
+    # recon + vuln-scan pipeline, `tools/hunt.py --target <host>`. The spec
+    # must launch AND preflight on that entry, never agent.py.
+    spec = reg.TOOLS["cbb"]
+    joined = " ".join(spec.cmd)
+    assert "tools/hunt.py" in joined
+    assert "--target" in joined
+    assert "{target}" in joined
+    assert "agent.py" not in joined
+    assert spec.per_target is True
+    assert spec.enabled is True
+    # Preflight gates on the SAME entry it launches (so a passing preflight
+    # means the launched command can at least parse its own --help).
+    assert any("tools/hunt.py --help" in label for label, _ in spec.needs)
+    assert not any("agent.py" in label for label, _ in spec.needs)
+
+
 def test_build_env_injects_harness_and_proxy():
     env = reg.build_env(api_url="http://127.0.0.1:8001",
                         egress_proxy="http://127.0.0.1:8080")
@@ -237,6 +257,95 @@ def test_spawn_feeds_scope_urls_on_stdin(tmp_path, monkeypatch, registry):
     got = out.read_text(encoding="utf-8").split()
     assert got == ["https://a.acme.com/", "https://b.acme.com/"]
     hl.kill_tools(procs)
+
+
+# ── Fix B: stdin URL normalization (jsleak dies silently — exit 0 — on bare
+#    hosts: `unsupported protocol scheme ""`. The launcher must hand every
+#    stdin tool only fetchable https:// URLs, covering BOTH the derived scope
+#    list and an explicit --targets list.) ─────────────────────────────────
+
+def test_normalize_target_url():
+    # Bare hosts / host+path get an https:// prefix…
+    assert hl._normalize_target_url("www.acme.com") == "https://www.acme.com"
+    assert hl._normalize_target_url("random.acme.com/random/") == \
+        "https://random.acme.com/random/"
+    # …lines that already carry a scheme are returned unchanged (any scheme)…
+    assert hl._normalize_target_url("https://a.acme.com/") == "https://a.acme.com/"
+    assert hl._normalize_target_url("http://a.acme.com/x") == "http://a.acme.com/x"
+    # …whitespace is stripped, and empty stays empty.
+    assert hl._normalize_target_url("  a.acme.com ") == "https://a.acme.com"
+    assert hl._normalize_target_url("   ") == ""
+
+
+def test_spawn_normalizes_bare_hosts_on_stdin(tmp_path, monkeypatch, registry):
+    # The exact live bug: the scope produces bare hosts (no scheme). Without
+    # normalization jsleak fetches "www.acme.com" -> "unsupported protocol
+    # scheme ''" and exits 0 (a silent no-op). The stub must receive full URLs.
+    out = tmp_path / "stdin.txt"
+    monkeypatch.setenv("STUB_STDIN_OUT", str(out))
+    procs, notes = hl.spawn_tools(
+        keys=["stdin"], per_target=["www.acme.com", "b.acme.com"],
+        scope_urls=["www.acme.com", "b.acme.com"],   # bare, as derived
+        api_url="http://127.0.0.1:8001", egress_proxy="http://127.0.0.1:8080",
+        scope=_scope())
+    assert len(procs) == 1
+    procs[0].proc.wait(timeout=10)
+    got = out.read_text(encoding="utf-8").split()
+    assert got == ["https://www.acme.com", "https://b.acme.com"]
+    assert all(u.startswith("https://") for u in got)
+    hl.kill_tools(procs)
+
+
+def test_spawn_egress_proxy_injects_real_scope(tmp_path, monkeypatch):
+    """Fix C (root cause of the live hunt's egress gate being a no-op):
+    `_spawn_egress_proxy` previously never set HARNESS_SCOPE_FILE, so the
+    mitmdump addon fell back to the permissive `*` wildcard and enforced
+    nothing. It must now point the gate at the normalized workspace
+    scope.json so the live :8080 gate enforces the program's real scope."""
+    import main
+    import core.config as cc
+
+    # A normalized workspace scope.json to point at.
+    ws = tmp_path / "workspace" / "acme"
+    ws.mkdir(parents=True)
+    (ws / "scope.json").write_text(json.dumps({
+        "program_handle": "acme", "platform": "intigriti",
+        "in_scope": [{"pattern": "www.acme.com", "match_type": "exact"}],
+        "out_of_scope": [],
+    }))
+
+    config = cc.HarnessConfig()
+    config.egress_proxy_port = 8080
+    from core.types import TargetScope, Platform, ScopeRule, ScopeMatchType
+    scope = TargetScope(
+        program_handle="acme", platform=Platform.INTIGRITI,
+        in_scope=[ScopeRule("www.acme.com", ScopeMatchType.EXACT)],
+        out_of_scope=[],
+    )
+
+    captured = {}
+
+    class _FakePopen:
+        def __init__(self, cmd, env=None, **kw):
+            captured["cmd"] = cmd
+            captured["env"] = env
+        def terminate(self):
+            pass
+        def poll(self):
+            return 0
+
+    monkeypatch.setattr(hl.shutil, "which", lambda b: "/usr/bin/mitmdump")
+    monkeypatch.setattr(hl.subprocess, "Popen", _FakePopen)
+
+    proc = main._spawn_egress_proxy(config, scope, str(tmp_path / "workspace"))
+    assert proc is not None
+    env = captured["env"]
+    assert env["HARNESS_SCOPE_FILE"] == str((ws / "scope.json").resolve())
+    assert env["HARNESS_SCOPE_FORMAT"] == "normalized_json"
+    assert env["HARNESS_PROGRAM_HANDLE"] == "acme"
+    # mitmdump is actually the binary being launched (addon path present).
+    assert captured["cmd"][0] == "mitmdump"
+    assert any("egress_proxy.py" in c for c in captured["cmd"])
 
 
 def test_spawn_fans_out_per_target(tmp_path, registry):

@@ -544,14 +544,17 @@ scans). Registry (<code>tools/registry.py</code>):</p>
 <tr>
 <td><code>jsleak</code></td>
 <td>JS secrets/links scanner (Go)</td>
-<td>1 process, in-scope URL list on stdin, <code>-json</code> (auto
-<code>go build</code> once)</td>
+<td>1 process, in-scope URL list on stdin (normalized to
+<code>https://…</code>), <code>-json</code> (auto <code>go build</code>
+once)</td>
 </tr>
 <tr>
 <td><code>cbb</code></td>
-<td>claude-bug-bounty ReAct agent (Python)</td>
-<td>1 agent <strong>per <code>--targets</code> host</strong> (default:
-first 3 exact-match hosts)</td>
+<td>claude-bug-bounty recon+scan pipeline (Python)</td>
+<td>1 pipeline <strong>per <code>--targets</code> host</strong> via
+<code>tools/hunt.py --target &lt;host&gt;</code> (default: first 3
+exact-match hosts). The ReAct entry (<code>agent.py</code>) is broken in
+the pinned fork, so it is not launched.</td>
 </tr>
 <tr>
 <td><code>adhd</code></td>
@@ -838,14 +841,52 @@ if the blind test still matters.</td>
 <tr>
 <td><code>oob: register HTTP 400 (… already exists …)</code> at
 boot</td>
-<td>The public Interactsh keys sessions by User-Agent; a stale same-day
-session under the engine’s OLD shared UA (<code>ult-harness/3.0</code>)
-rejected every new register, so OOB stayed unregistered (blind classes
-can’t confirm)</td>
-<td>Fixed 2026-10-21: unique per-instance UA + one retry with a rotated
-UA on exactly this error — a fresh <code>hunt</code> self-heals. Only a
-hunt booted before that fix can still show the warning: restart it
-(<code>hunt &lt;handle&gt;</code>).</td>
+<td>The public Interactsh keys anonymous sessions by the <strong>client
+IP</strong> (not the User-Agent); a stale session left by a
+previously-killed hunt rejects every new register until its server-side
+TTL lapses, so OOB stays unregistered (blind classes can’t confirm)</td>
+<td>Fixed 2026-10-21 (Debug log 3): the OOB poll loop re-registers on a
+~90 s throttle (<code>OOBEngine.maintain()</code>, quiet), so a hunt
+that boots OOB-blocked self-registers once the IP-keyed slot frees — no
+restart. Escape hatch: <code>INTERACTSH_MODE=selfhosted</code>.</td>
+</tr>
+<tr>
+<td><code>cbb</code> process exits 1 at hunt start (was invisible — tool
+stdout → <code>DEVNULL</code>)</td>
+<td>The registry launched <code>agent.py --target</code> (the ReAct
+entry), which is broken in the pinned fork
+(<code>claude-bug-bounty</code> @ b2e9eb7): it lazy-loads a root
+<code>hunt.py</code> that no longer exists →
+<code>FileNotFoundError</code> on arrival; <code>agent.py --help</code>
+still exits 0 so the old preflight passed falsely</td>
+<td>Fixed 2026-10-21: the spec now launches
+<code>tools/hunt.py --target &lt;host&gt;</code> (the working recon+scan
+pipeline) and preflights that same entry. Component untouched;
+harness-side registry change only.</td>
+</tr>
+<tr>
+<td><code>jsleak</code> exits 0 but scanned nothing (silent no-op)</td>
+<td>It was fed <strong>bare hosts</strong> on stdin; it fetches each
+line with an HTTP client, so a schemeless line is
+<code>unsupported protocol scheme ""</code> and the run “succeeds”
+empty</td>
+<td>Fixed 2026-10-21: <code>spawn_tools</code> normalizes every stdin
+line to <code>https://…</code> at the single choke point (covers derived
+scope <strong>and</strong> <code>--targets</code>).</td>
+</tr>
+<tr>
+<td>Egress log ALLOWs hosts that are NOT in program scope (e.g. a recon
+source)</td>
+<td>The live gate was running on the permissive <code>*</code> dev
+wildcard — <code>_spawn_egress_proxy</code> never set
+<code>HARNESS_SCOPE_FILE</code>, so it enforced only the hardcoded
+DNS-rebind/third-party rules</td>
+<td>Fixed 2026-10-21: <code>run</code>/<code>hunt</code> now point the
+gate at <code>workspace/&lt;p&gt;/scope.json</code> (normalized format +
+a loud WARNING if it would fall back to the wildcard). Passive recon
+sources (crt.sh, web.archive.org, pdtm.sh, GitHub) are on the OSINT
+allowlist so recon still reaches origin under a real scope. Note:
+raw-TCP tools (nmap) bypass the HTTP egress proxy.</td>
 </tr>
 <tr>
 <td>War room “active” but idle: <code>active_specialists: 0</code>,

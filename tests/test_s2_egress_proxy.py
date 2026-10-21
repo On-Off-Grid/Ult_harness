@@ -129,3 +129,64 @@ def test_passive_cdn_is_classified_passive(proxy, make_flow, fake_response_make)
     last = [json.loads(l) for l in Path(proxy.log_path).read_text().splitlines() if l.strip()][-1]
     assert last["msg"] == "[PASSIVE CDN]"
     assert last["data"]["passive"] is True
+
+
+# ── Normalized workspace scope (the LIVE path: HARNESS_SCOPE_FILE points at
+#    workspace/<program>/scope.json) — the gate must enforce the REAL program
+#    scope, not the permissive `*` dev wildcard ─────────────────────────────
+
+def _normalized_scope(tmp_path, program="acme") -> str:
+    sj = tmp_path / program / "scope.json"
+    sj.parent.mkdir(parents=True, exist_ok=True)
+    sj.write_text(json.dumps({
+        "program_handle": program, "platform": "intigriti",
+        "in_scope": [
+            {"pattern": "www.acme.com", "match_type": "exact", "description": ""},
+            {"pattern": "*.acme.com", "match_type": "wildcard", "description": ""},
+        ],
+        "out_of_scope": [
+            {"pattern": "book.acme.com", "match_type": "exact", "description": ""},
+        ],
+        "rate_limit_rps": 10.0, "max_concurrent": 5,
+    }))
+    return str(sj)
+
+
+@pytest.fixture
+def norm_proxy(clean_env, tmp_path, monkeypatch):
+    """EgressProxy pointed at a normalized workspace scope.json — the exact
+    wiring `main.py run`/`hunt` now performs (HARNESS_SCOPE_FILE + the
+    normalized format). Format is AUTO-detected here (no explicit
+    HARNESS_SCOPE_FORMAT) to also cover detect_format()."""
+    scope_file = _normalized_scope(tmp_path)
+    monkeypatch.setenv("HARNESS_SCOPE_FILE", scope_file)
+    # Leave HARNESS_SCOPE_FORMAT unset on purpose: the proxy must infer it.
+    monkeypatch.delenv("HARNESS_SCOPE_FORMAT", raising=False)
+    monkeypatch.setenv("HARNESS_PROGRAM_HANDLE", "acme")
+    return EgressProxy()
+
+
+def test_normalized_scope_enforced_not_wildcard(norm_proxy, make_flow, fake_response_make):
+    # In-scope -> allowed; a host that would pass a `*` wildcard but is NOT in
+    # this program's scope -> dropped. This is the whole point of the fix: the
+    # live gate now enforces the real scope.
+    assert _status_for(norm_proxy, "http://www.acme.com/", make_flow, fake_response_make) == 200
+    assert _status_for(norm_proxy, "http://app.acme.com/x", make_flow, fake_response_make) == 200
+    # NOT in scope (the permissive wildcard would have allowed it):
+    assert _status_for(norm_proxy, "http://evil.com/", make_flow, fake_response_make) == 403
+    # Explicit out-of-scope wins over the wildcard:
+    assert _status_for(norm_proxy, "http://book.acme.com/", make_flow, fake_response_make) == 403
+
+
+def test_normalized_scope_falls_back_to_wildcard_when_file_missing(clean_env, make_flow, fake_response_make, monkeypatch):
+    # No scope file anywhere -> permissive `*` wildcard (start-up fallback), so
+    # the proxy can still boot. This is the documented dev fallback, not a
+    # policy: the live path always supplies a real file.
+    monkeypatch.delenv("HARNESS_SCOPE_FILE", raising=False)
+    monkeypatch.setenv("HARNESS_PROGRAM_HANDLE", "acme")
+    p = EgressProxy()
+    # A `*` wildcard allows any non-internal host in dry-run.
+    assert _status_for(p, "http://whatever.example.net/", make_flow, fake_response_make) == 200
+    # ...but internal / DNS-rebind targets are STILL hard-blocked even under
+    # the permissive fallback (the safety floor is unconditional).
+    assert _status_for(p, "http://169.254.169.254/latest/", make_flow, fake_response_make) == 403

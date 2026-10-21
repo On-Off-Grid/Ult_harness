@@ -8,6 +8,9 @@ import os
 
 import pytest
 
+import time
+
+import compliance.oob_engine as oe
 from compliance.header_injector import HeaderInjector, PlatformProfile
 from compliance.oob_engine import OOBEngine, OOBCallback
 
@@ -255,3 +258,80 @@ def test_oob_other_register_error_does_not_retry():
     assert eng.initialized is False
     regs = [c for c in http.calls if c[1].endswith("/register")]
     assert len(regs) == 1
+
+
+# ── OOBEngine: background re-registration (public Interactsh keys sessions
+#    by CLIENT IP — a stale session from a previously-killed hunt blocks new
+#    registers with 400 until the server-side TTL lapses; the poll loop must
+#    retry on a throttle rather than give up at boot) ──────────────────────
+
+def test_maintain_retries_register_when_unregistered():
+    # init() hits a persistent stale 400 (an IP-keyed session a killed hunt
+    # left behind) and stays unregistered. maintain() — called from the poll
+    # loop — must re-attempt a register once the throttle has elapsed, and
+    # register successfully the moment the stale slot frees up.
+    ok = (200, {"collaborator": "c", "collaborator_token": "tok-late"})
+    http = _mock_interactsh_stale(register=[
+        (400, {"error": "correlation-id provided already exists"}),
+        (400, {"error": "correlation-id provided already exists"}),
+        ok, ok, ok,
+    ])
+    eng = OOBEngine(mode="public", base_domain="oast.me", http=http)
+    asyncio.run(eng.init())
+    assert eng.initialized is False  # boot was blocked by the stale session
+
+    # Throttle not elapsed yet -> maintain() is a no-op.
+    asyncio.run(eng.maintain())
+    regs = [c for c in http.calls if c[1].endswith("/register")]
+    assert len(regs) == 2            # init's two attempts, no extra from maintain
+
+    # Fast-forward past the throttle -> maintain() retries and registers.
+    eng._last_reregister -= oe.REREGISTER_RETRY_SECONDS + 1
+    asyncio.run(eng.maintain())
+    regs = [c for c in http.calls if c[1].endswith("/register")]
+    assert len(regs) == 3
+    assert eng.initialized is True
+    assert eng.collision_token == "tok-late"
+
+
+def test_maintain_does_nothing_when_registered_or_disabled():
+    # A registered session must not be re-registered (no churn), and a
+    # disabled engine must never touch the network.
+    http = _mock_interactsh()
+    eng = OOBEngine(mode="public", base_domain="oast.me", http=http)
+    asyncio.run(eng.init())
+    assert eng.initialized is True
+    n_before = len([c for c in http.calls if c[1].endswith("/register")])
+    eng._last_reregister -= oe.REREGISTER_RETRY_SECONDS + 1  # force-throttle
+    asyncio.run(eng.maintain())
+    n_after = len([c for c in http.calls if c[1].endswith("/register")])
+    assert n_after == n_before       # registered -> no re-register
+
+    dis_http = _mock_interactsh()
+    dis = OOBEngine(mode="off", base_domain="oast.me", http=dis_http)
+    asyncio.run(dis.maintain())
+    assert dis_http.calls == []      # disabled -> no network at all
+
+
+def test_maintain_throttle_is_configurable():
+    # The retry cadence is a module constant (so a hunt / a test can tune it),
+    # and it is honored: two maintains within the window issue exactly one
+    # extra register.
+    orig = oe.REREGISTER_RETRY_SECONDS
+    try:
+        oe.REREGISTER_RETRY_SECONDS = 3600.0  # very long window
+        http = _mock_interactsh_stale(register=[
+            (400, {"error": "correlation-id provided already exists"}),
+            (400, {"error": "correlation-id provided already exists"}),
+            (400, {"error": "correlation-id provided already exists"}),
+        ])
+        eng = OOBEngine(mode="public", base_domain="oast.me", http=http)
+        asyncio.run(eng.init())
+        eng._last_reregister -= 3601.0
+        asyncio.run(eng.maintain())      # eligible -> one register
+        asyncio.run(eng.maintain())      # still within window -> no register
+        regs = [c for c in http.calls if c[1].endswith("/register")]
+        assert len(regs) == 3
+        assert time.monotonic() - eng._last_reregister < 3600.0
+    finally:
+        oe.REREGISTER_RETRY_SECONDS = orig

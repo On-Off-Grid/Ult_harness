@@ -61,16 +61,43 @@ def _load_scope_from_env() -> ScopeGate:
     Helper: construct a ScopeGate from environment variables.
 
     Expected env:
-    - HARNESS_SCOPE_FILE: path to H1 CSV or Bugcrowd JSON
-    - HARNESS_SCOPE_FORMAT: "hackerone_csv" | "bugcrowd_json"
-    - HARNESS_PROGRAM_HANDLE: program handle (e.g. "acme-corp")
+    - HARNESS_SCOPE_FILE: path to a scope file. Accepted formats:
+      * the NORMALIZED workspace format ``workspace/<program>/scope.json``
+        (``in_scope``/``out_of_scope`` lists — what `main.py init` writes and
+        what a live `hunt` points the gate at);
+      * H1 CSV (``.csv``);
+      * Bugcrowd-shaped JSON (a JSON object whose rules live under ``targets``).
+    - HARNESS_SCOPE_FORMAT: "hackerone_csv" | "bugcrowd_json" |
+      "normalized_json" (inferred from the file when omitted)
+    - HARNESS_WORKSPACE + HARNESS_PROGRAM_HANDLE: fallback location of the
+      normalized scope.json when HARNESS_SCOPE_FILE is not set.
+
+    The permissive ``*`` wildcard is a START-UP FALLBACK, not a policy: if no
+    scope file can be located or parsed, the proxy logs a WARNING and allows
+    everything so mitmdump can still start. A live hunt must point the gate
+    at a real scope file (``main.py run``/``hunt`` do this) — the warning is
+    the operator's signal that the gate is not enforcing program scope.
     """
-    scope_file = os.getenv("HARNESS_SCOPE_FILE")
-    scope_fmt = os.getenv("HARNESS_SCOPE_FORMAT", "hackerone_csv")
     program_handle = os.getenv("HARNESS_PROGRAM_HANDLE", "default-program")
+    scope_file = os.getenv("HARNESS_SCOPE_FILE")
+
+    # Fallback: the live `hunt`/`run` boots the gate from the workspace
+    # scope.json produced by `init` (HARNESS_SCOPE_FILE is authoritative when
+    # set; this covers any boot path that forgets it).
+    if not scope_file:
+        ws = os.getenv("HARNESS_WORKSPACE", "")
+        if ws:
+            candidate = str(Path(ws) / program_handle / "scope.json")
+            if os.path.exists(candidate):
+                scope_file = candidate
 
     if not scope_file or not os.path.exists(scope_file):
-        # Fallback: very permissive wildcard (for dev only).
+        logger.warning(
+            "EgressProxy: no scope file (HARNESS_SCOPE_FILE unset / missing "
+            f"and no {os.getenv('HARNESS_WORKSPACE','')}/{program_handle}/scope.json) "
+            "— falling back to a PERMISSIVE '*' wildcard. The scope gate is "
+            "NOT enforcing program scope. Export the scope and re-run."
+        )
         ts = TargetScope(
             program_handle=program_handle,
             platform=Platform.HACKERONE,
@@ -78,11 +105,33 @@ def _load_scope_from_env() -> ScopeGate:
         )
         return ScopeGate(ts)
 
-    if scope_fmt == "bugcrowd_json":
-        ts = ScopeImporter.parse_bugcrowd_json(scope_file, program_handle)
-    else:
-        ts = ScopeImporter.parse_hackerone_csv(scope_file, program_handle)
+    scope_fmt = os.getenv("HARNESS_SCOPE_FORMAT") or \
+        ScopeImporter.detect_format(scope_file)
 
+    try:
+        if scope_fmt == "bugcrowd_json":
+            ts = ScopeImporter.parse_bugcrowd_json(scope_file, program_handle)
+        elif scope_fmt == "normalized_json":
+            ts = ScopeImporter.parse_workspace_json(scope_file, program_handle)
+        else:
+            ts = ScopeImporter.parse_hackerone_csv(scope_file, program_handle)
+    except Exception as exc:
+        # A malformed scope must fail CLOSED (permissive) with a loud log,
+        # never crash the mitmdump addon and take the whole hunt's egress down.
+        logger.warning(
+            f"EgressProxy: failed to parse {scope_file} "
+            f"(format={scope_fmt!r}: {exc.__class__.__name__}: {exc}) — "
+            "falling back to a PERMISSIVE '*' wildcard"
+        )
+        ts = TargetScope(
+            program_handle=program_handle,
+            platform=Platform.HACKERONE,
+            in_scope=[ScopeRule(pattern="*", match_type=ScopeMatchType.WILDCARD)],
+        )
+    logger.info(
+        f"EgressProxy scope: {scope_file} (format={scope_fmt}, "
+        f"{len(ts.in_scope)} in-scope / {len(ts.out_of_scope)} out-of-scope rule(s))"
+    )
     return ScopeGate(ts)
 
 

@@ -406,11 +406,20 @@ def _spawn_egress_proxy(config: HarnessConfig, scope: TargetScope,
     if not shutil.which("mitmdump"):
         logger.warning("mitmdump not found on PATH — egress proxy not started")
         return None
+    # The egress gate must enforce the PROGRAM's real scope, not the permissive
+    # `*` dev wildcard. Point it at the normalized workspace scope.json that
+    # `init` wrote (the SAME file the rest of the control plane loaded). This is
+    # what turns the :8080 gate from a pass-through into an actual backstop.
+    scope_file = Path(workspace_root) / scope.program_handle / "scope.json"
     env = dict(os.environ)
     env.update({
         "HARNESS_PROGRAM_HANDLE": scope.program_handle,
         "HARNESS_WING_ID": scope.program_handle,
         "HARNESS_WORKSPACE": str(Path(workspace_root).resolve()),
+        # Normalized workspace format (in_scope/out_of_scope lists) — the
+        # importer auto-detects it, but be explicit for clarity/robustness.
+        "HARNESS_SCOPE_FILE": str(scope_file.resolve()),
+        "HARNESS_SCOPE_FORMAT": "normalized_json",
         "EGRESS_PROXY_PORT": str(config.egress_proxy_port),
     })
     addon = str(PROJECT_ROOT / "compliance" / "egress_proxy.py")
@@ -427,12 +436,26 @@ async def _oob_poll_loop(admiral, interval: float = OOB_POLL_INTERVAL_SECONDS) -
     """S8.1: the receive side — repeatedly run ``admiral.poll_oob()`` for the
     life of the hunt. A callback is the proof for blind SSRF/RCE/XXE and
     nothing else in the live path reads Interactsh, so this loop is what
-    turns embedded OOB payloads into confirmed findings. One loop per hunt;
-    a bad iteration never kills the hunt (poll_oob is already fail-open,
-    this is belt and braces)."""
+    turns embedded OOB payloads into confirmed findings.
+
+    It also runs ``oob_engine.maintain()`` each tick: the public Interactsh
+    service keys anonymous sessions by client IP, so a stale session left by a
+    previously-killed hunt can block boot's register with 400 until it lapses
+    server-side — maintain() re-registers on a throttle (quietly) so a blocked
+    hunt self-heals without an operator restarting anything.
+
+    One loop per hunt; a bad iteration never kills the hunt (poll_oob and
+    maintain are both fail-open, this is belt and braces)."""
+    oob = getattr(admiral, "oob_engine", None)
     while True:
         try:
             await asyncio.sleep(interval)
+            if oob is not None and getattr(oob, "enabled", False):
+                try:
+                    await oob.maintain()
+                except Exception:
+                    logger.debug("oob maintain() failed — continuing",
+                                 exc_info=True)
             await admiral.poll_oob()
         except asyncio.CancelledError:
             raise

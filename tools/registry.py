@@ -98,13 +98,27 @@ def _build_jsleak() -> None:
     )
 
 
-# ── cbb — claude-bug-bounty ReAct recon agent ─────────────────────────────
-# `python agent.py --target <domain>`. Long-running, LLM-driven. Needs the
-# Anthropic/Claude credentials it normally uses; launched per-target.
+# ── cbb — claude-bug-bounty recon + vuln-scan pipeline ────────────────────
+# `python tools/hunt.py --target <domain>`. Long-running recon→scan pipeline
+# (subfinder/crt.sh/wayback/katana/httpx/nmap/nuclei …). Launched per-target.
+# See the note on ``_cbb_help_ok`` for why this is ``tools/hunt.py`` and not
+# the ReAct entry ``agent.py`` (which is broken in the pinned fork).
 def _cbb_help_ok() -> Optional[str]:
-    """Best-effort: agent.py must at least parse its own --help. If it cannot
-    be run (missing deps / no interpreter) we refuse to launch it rather than
-    guess. Verified against the pinned commit before flipping enabled=True."""
+    """Best-effort: ``tools/hunt.py`` must at least parse its own --help. If it
+    cannot be run (missing deps / no interpreter) we refuse to launch it rather
+    than guess. Verified against the pinned commit before flipping
+    enabled=True.
+
+    Why ``tools/hunt.py`` and not ``agent.py``: the ReAct entry (``agent.py``)
+    is broken in the pinned fork — its lazy ``_h()`` loads a root ``hunt.py``
+    that no longer exists, and the ``run_*``/``_activate_recon_session`` API it
+    calls is gone from ``tools/hunt.py``. ``agent.py --help`` still exits 0
+    (the crash is only reached once a hunt starts), so a ``--help`` preflight on
+    ``agent.py`` would *pass* while the tool dies on arrival. The working,
+    long-running, per-target entry in this fork is the recon + vuln-scan
+    pipeline, ``tools/hunt.py --target <host>`` — so that is what we gate on
+    and launch. (Any change here must stay generic: it is a component entry
+    point, not program-specific.)"""
     import subprocess
     import main
     py = str(main.PROJECT_ROOT / ".venv" / "bin" / "python")
@@ -112,12 +126,12 @@ def _cbb_help_ok() -> Optional[str]:
     if not os.path.exists(py):
         py = "python3"
     r = subprocess.run(
-        [py, "agent.py", "--help"],
+        [py, "tools/hunt.py", "--help"],
         cwd=str(main.PROJECT_ROOT / "claude-bug-bounty"),
         capture_output=True, timeout=30,
     )
     return None if r.returncode == 0 else \
-        "agent.py --help did not exit 0 (missing deps or runtime)"
+        "tools/hunt.py --help did not exit 0 (missing deps or runtime)"
 
 
 # ── adhd — divergent-ideation aux (no target) ─────────────────────────────
@@ -152,14 +166,16 @@ TOOLS = {
     ),
     "cbb": ToolSpec(
         key="cbb",
-        label="claude-bug-bounty — ReAct recon agent (Python)",
+        label="claude-bug-bounty — recon + vuln-scan pipeline (Python)",
         kind="agent",
         enabled=True,
         per_target=True,
-        cmd=["{python}", "agent.py", "--target", "{target}"],
+        cmd=["{python}", "tools/hunt.py", "--target", "{target}"],
         cwd="claude-bug-bounty",
-        needs=[("agent.py --help exits 0", _cbb_help_ok)],
-        note="one long-running agent per selected target; LLM-driven",
+        needs=[("tools/hunt.py --help exits 0", _cbb_help_ok)],
+        note="one long-running recon+scan pipeline per selected target; the "
+             "ReAct entry (agent.py) is broken in the pinned fork, so the "
+             "working tools/hunt.py pipeline is launched instead",
     ),
     "adhd": ToolSpec(
         key="adhd",

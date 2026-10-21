@@ -154,3 +154,80 @@ def test_import_bugcrowd_json(tmp_path):
     patterns_out = {r.pattern for r in ts.out_of_scope}
     assert patterns_in == {"*.acme.com"}
     assert patterns_out == {"dev.acme.com"}
+
+
+# ── Normalized workspace scope (what `main.py init` writes and the live
+#    egress gate is pointed at via HARNESS_SCOPE_FILE) ─────────────────────
+
+def test_import_normalized_workspace_json(tmp_path):
+    sj = tmp_path / "scope.json"
+    sj.write_text(json.dumps({
+        "program_handle": "acme",
+        "platform": "intigriti",
+        "in_scope": [
+            {"pattern": "www.acme.com", "match_type": "exact", "description": ""},
+            {"pattern": "*.acme.com", "match_type": "wildcard", "description": ""},
+            {"pattern": "193.58.149.121/32", "match_type": "cidr", "description": "ip"},
+        ],
+        "out_of_scope": [
+            {"pattern": "book.acme.com", "match_type": "exact", "description": ""},
+        ],
+        "rate_limit_rps": 10.0, "max_concurrent": 5,
+    }))
+    ts = ScopeImporter.parse_workspace_json(str(sj), "ignored-handle")
+    assert ts.program_handle == "acme"                 # file wins over arg
+    assert ts.platform is Platform.INTIGRITI
+    assert {r.pattern for r in ts.in_scope} == {
+        "www.acme.com", "*.acme.com", "193.58.149.121/32"}
+    assert {r.pattern for r in ts.out_of_scope} == {"book.acme.com"}
+    by = {r.pattern: r.match_type for r in ts.in_scope}
+    assert by["www.acme.com"] is ScopeMatchType.EXACT
+    assert by["*.acme.com"] is ScopeMatchType.WILDCARD
+    assert by["193.58.149.121/32"] is ScopeMatchType.CIDR
+    # A rule with a missing/odd match_type falls back to shape inference.
+    sj.write_text(json.dumps({
+        "program_handle": "acme", "platform": "intigriti",
+        "in_scope": [{"pattern": "*.kwsdose.be"}],
+        "out_of_scope": [],
+    }))
+    ts2 = ScopeImporter.parse_workspace_json(str(sj), "acme")
+    assert ts2.in_scope[0].match_type is ScopeMatchType.WILDCARD
+
+
+def test_import_normalized_workspace_rejects_non_scope(tmp_path):
+    bad = tmp_path / "notscope.json"
+    bad.write_text(json.dumps({"targets": [{"name": "x"}]}))
+    with pytest.raises(ValueError):
+        ScopeImporter.parse_workspace_json(str(bad), "acme")
+
+
+def test_detect_format():
+    # (handled by conftest-independent helpers on a real path) — exercise the
+    # suffix + JSON-shape logic with a tmp file.
+    import tempfile, os
+    d = tempfile.mkdtemp()
+    norm = os.path.join(d, "scope.json")
+    with open(norm, "w") as f:
+        json.dump({"in_scope": [], "out_of_scope": []}, f)
+    bc = os.path.join(d, "bugcrowd.json")
+    with open(bc, "w") as f:
+        json.dump({"targets": []}, f)
+    csvf = os.path.join(d, "h1.csv")
+    with open(csvf, "w") as f:
+        f.write("asset_type,asset_identifier\n")
+    assert ScopeImporter.detect_format(norm) == "normalized_json"
+    assert ScopeImporter.detect_format(bc) == "bugcrowd_json"
+    assert ScopeImporter.detect_format(csvf) == "hackerone_csv"
+    # An extensionless path falls back to the legacy default.
+    assert ScopeImporter.detect_format(os.path.join(d, "scope")) == "hackerone_csv"
+
+
+def test_osint_allowlist_covers_passive_recon_sources():
+    # These passive recon sources must be hard-allowed even when absent from
+    # the program scope — otherwise a correctly-enforced scope drops every
+    # recon source and the recon phase returns nothing (verified live: the
+    # cbb pipeline queries exactly these).
+    gate = ScopeGate(_scope([("*.example.com", ScopeMatchType.WILDCARD)]))
+    for host in ("crt.sh", "web.archive.org", "api.pdtm.sh", "github.com",
+                 "raw.githubusercontent.com", "api.urlscan.io"):
+        assert gate.is_in_scope(f"https://{host}/x") is True, host
