@@ -41,6 +41,7 @@ import logging
 import random
 import re
 import string
+import uuid
 from dataclasses import dataclass
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
@@ -129,6 +130,12 @@ class OOBEngine:
             or (_host_of(self.interactsh_url) if self.mode == "selfhosted" else "")
             or PUBLIC_BASE_DOMAIN
         )
+        # The public Interactsh service keys sessions by User-Agent: a stale
+        # session under a SHARED UA makes every new POST /register answer 400
+        # "correlation-id provided already exists". A per-instance UA keeps
+        # each hunt's session disjoint; init() rotates it once if a stale
+        # session still blocks the register.
+        self._ua = f"ult-harness/3.0/{uuid.uuid4().hex[:12]}"
         self.session_id: Optional[str] = None      # == collision token once registered
         self.collaborator: Optional[str] = None
         self.collision_token: Optional[str] = None
@@ -151,8 +158,13 @@ class OOBEngine:
             return self.interactsh_url
         return PUBLIC_API_URL
 
+    def _new_ua(self) -> str:
+        """A fresh per-instance User-Agent (see ``_ua`` note in ``__init__``)."""
+        self._ua = f"ult-harness/3.0/{uuid.uuid4().hex[:12]}"
+        return self._ua
+
     def _headers(self) -> Dict[str, str]:
-        headers = {"User-Agent": "ult-harness/3.0", "Accept": "application/json"}
+        headers = {"User-Agent": self._ua, "Accept": "application/json"}
         if self.api_token:
             headers["Authorization"] = f"Bearer {self.api_token}"
         return headers
@@ -163,21 +175,40 @@ class OOBEngine:
         Fail-open: when disabled, or on any error / missing fields, the engine
         stays available-but-unregistered — payloads keep working as
         placeholders and ``poll_callbacks()`` returns [].
+
+        Stale-session recovery: the public service rejects a register while a
+        session under the SAME User-Agent is still alive ("correlation-id
+        provided already exists", HTTP 400). On that exact error the UA is
+        rotated once and the register retried — a fresh UA is always a fresh
+        session, so this is generic (no program/platform coupling).
         """
         if not self.enabled or self.initialized or self._closed:
             return
-        try:
-            status, body = await self.http(
-                "POST", f"{self._api_base()}/register", self._headers(), {}, 15,
-            )
-        except Exception as exc:
-            logger.warning(f"oob: register failed ({exc}) — OOB fail-open")
-            return
-        body = body if isinstance(body, dict) else {}
-        data = body.get("data") if isinstance(body.get("data"), dict) else {}
-        collab = body.get("collaborator") or data.get("collaborator")
-        token = body.get("collaborator_token") or data.get("collaborator_token")
-        if status != 200 or not collab or not token:
+        for attempt in (1, 2):
+            try:
+                status, body = await self.http(
+                    "POST", f"{self._api_base()}/register", self._headers(), {}, 15,
+                )
+            except Exception as exc:
+                logger.warning(f"oob: register failed ({exc}) — OOB fail-open")
+                return
+            body = body if isinstance(body, dict) else {}
+            data = body.get("data") if isinstance(body.get("data"), dict) else {}
+            collab = body.get("collaborator") or data.get("collaborator")
+            token = body.get("collaborator_token") or data.get("collaborator_token")
+            if status == 200 and collab and token:
+                break
+            blob = json.dumps(body).lower()
+            if attempt == 1 and status == 400 and "already exists" in blob:
+                logger.info(
+                    "oob: stale Interactsh session under this UA "
+                    f"({body!r}) — rotating UA and retrying once"
+                )
+                self._new_ua()
+                continue
+            # Attempt 2 failed (or the rotated UA hit a different error):
+            # the loop body always breaks on success or returns on final
+            # failure, so we never fall through without collab/token.
             logger.warning(
                 f"oob: register HTTP {status} (got {body!r}) — OOB fail-open"
             )

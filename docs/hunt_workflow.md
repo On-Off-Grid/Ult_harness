@@ -9,7 +9,7 @@ orchestrates by *reacting*, not by commanding. Read §4 before anyone asks
 "why doesn't the admiral just tell the scanner what to scan?"
 
 **Companion docs:** `docs/hunt_cheatsheet.md` (what to type on hunt day),
-`docs/examples/datacamp_intigriti.md` (one verified program, end to end),
+`docs/examples/uzleuven_intigriti.md` (one verified program, end to end),
 `patches/local-tweaks.md` §7 (the exact component-side wiring contract),
 `CREDITS.md` (provenance + pin commits of the 8 repos).
 
@@ -27,7 +27,7 @@ misunderstand the system:
 Two consequences of that split:
 
 1. **A fresh clone of this repo has no components.** The control plane is
-   complete and testable alone (260-test suite, fully offline); the hunt
+   complete and testable alone (294-test suite, fully offline); the hunt
    capability is bolted on by fetching the 8 repos and re-applying
    `patches/local-tweaks.md`.
 2. **No component code lives in this repo's history.** If you find yourself

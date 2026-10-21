@@ -187,12 +187,21 @@ TOOLS = {
 
 ALL_KEYS = list(TOOLS.keys())
 
+# The tools a bare `hunt <program>` launches by default (everything currently
+# enabled — jsleak + cbb as of S8.4). `--tools` still wins, including
+# `--tools none` for a control-plane-only run; the launcher skips any
+# disabled key with a note either way.
+ENABLED_KEYS = [k for k, s in TOOLS.items() if s.enabled]
+
 
 def resolve_keys(comma_list: Optional[str]) -> List[str]:
     """`"jsleak,cbb"` -> ["jsleak", "cbb"]; unknown keys raise ValueError with
     the list of valid keys (so the operator gets a usable error, not a
-    silent skip)."""
+    silent skip). ``"none"`` (any case) is the explicit control-plane-only
+    selection — not a registry key."""
     if not comma_list:
+        return []
+    if comma_list.strip().lower() == "none":
         return []
     keys = [k.strip() for k in comma_list.split(",") if k.strip()]
     bad = [k for k in keys if k not in TOOLS]
@@ -212,7 +221,7 @@ def resolve_keys(comma_list: Optional[str]) -> List[str]:
 def build_env(*, api_url: str, egress_proxy: str, extra: Optional[dict] = None) -> dict:
     """The env block a launched tool needs so it egresses through the scope
     gate and (where it's wired) calls back into the harness. Mirrors the
-    manual export block in docs/examples/datacamp_intigriti.md §Step 5.
+    manual export block in docs/examples/uzleuven_intigriti.md §Step 5.
 
     Everything is 127.0.0.1 + the egress proxy; NO_PROXY keeps localhost
     (the harness API, Ollama, mempalace) out of the proxy loop.

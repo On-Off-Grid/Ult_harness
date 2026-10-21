@@ -65,6 +65,9 @@ _THIRD_PARTY_BLOCKLIST: Set[str] = {
     "sentry.io",
 }
 
+# Patterns already warned about as invalid regex (one line each, not per-request).
+_REGEX_WARNED: Set[str] = set()
+
 
 @dataclass
 class ScopeGate:
@@ -168,21 +171,38 @@ class ScopeGate:
                 return True
         return False
 
-    @staticmethod
-    def _matches_rule(rule: ScopeRule, host: str, url: str) -> bool:
+    @classmethod
+    def _matches_rule(cls, rule: ScopeRule, host: str, url: str) -> bool:
         pattern = rule.pattern
         match_type = rule.match_type
 
         if match_type == ScopeMatchType.EXACT:
-            # Compare against hostname and full URL
-            return host == pattern or url == pattern
+            # Compare against hostname and full URL. A trailing slash on the
+            # pattern is a no-op (programs publish `host/` as the host).
+            pat = pattern.rstrip("/")
+            if host == pat or url == pat:
+                return True
+            # A path-qualified rule (`host/path`) matches that host's path
+            # prefix: the program scopes the PATH, not just the host.
+            if "/" in pat:
+                p_host, p_path = pat.split("/", 1)
+                p_path = "/" + p_path
+                if host == p_host:
+                    path = urlparse(url).path
+                    return path == p_path or path.startswith(p_path + "/")
+            return False
 
         if match_type == ScopeMatchType.WILDCARD:
-            # fnmatch-style host wildcard
-            return fnmatch.fnmatch(host, pattern)
+            # fnmatch-style host wildcard. DNS is case-insensitive, so match
+            # both sides lower-cased (fnmatch on POSIX is case-sensitive).
+            return fnmatch.fnmatch(host.lower(), pattern.lower())
 
         if match_type == ScopeMatchType.CIDR:
             try:
+                # Bare IPs (e.g. "1.2.3.4") are treated as /32 hosts.
+                if "/" not in pattern:
+                    ipaddress.ip_address(pattern)
+                    pattern += "/32"
                 network = ipaddress.ip_network(pattern, strict=False)
                 ip = ipaddress.ip_address(host)
                 return ip in network
@@ -190,6 +210,15 @@ class ScopeGate:
                 return False
 
         if match_type == ScopeMatchType.REGEX:
-            return bool(re.search(pattern, host))
+            try:
+                return bool(re.search(pattern, host))
+            except re.error:
+                # A malformed pattern must never take the egress gate down
+                # (and must never fail OPEN — it matches nothing).
+                if pattern not in _REGEX_WARNED:
+                    _REGEX_WARNED.add(pattern)
+                    print(f"[scope-gate] ✗ invalid regex rule {pattern!r} "
+                          f"treated as no-match (fix the scope file)")
+                return False
 
         return False

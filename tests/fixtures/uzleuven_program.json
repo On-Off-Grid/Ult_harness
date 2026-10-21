@@ -1,0 +1,631 @@
+{
+  "id": "2cf03670-6a2d-4ac7-8b1e-2e0d84338204",
+  "handle": "uzleuven",
+  "name": "UZ Leuven",
+  "following": true,
+  "confidentialityLevel": {
+    "id": 4,
+    "value": "Public"
+  },
+  "status": {
+    "id": 3,
+    "value": "Open"
+  },
+  "type": {
+    "id": 1,
+    "value": "Bug Bounty"
+  },
+  "domains": {
+    "id": "8c42af1f-ebc7-466c-a470-4119acdc3385",
+    "createdAt": 1778749141,
+    "content": [
+      {
+        "id": "c7d3481b-63fb-438a-9f4c-62d16f7dd569",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "boekentoy.uzleuven.be",
+        "tier": {
+          "id": 5,
+          "value": "Out Of Scope"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "1627ffc0-ebe6-4890-a8cb-4c969d3af7f4",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "uz-laboboeken.web.app",
+        "tier": {
+          "id": 5,
+          "value": "Out Of Scope"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "121a6456-4f4d-4494-ac9c-415bfa50b908",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "laboboeken.uzleuven.be",
+        "tier": {
+          "id": 5,
+          "value": "Out Of Scope"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "158b6f77-e0c2-439f-97e1-1b6d87602df9",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "boekentoy.firebaseio.com",
+        "tier": {
+          "id": 5,
+          "value": "Out Of Scope"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "e01b2841-6d9b-4b0d-b8c3-f7b55e2e4c32",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "uz-laboboeken.firebaseio.com",
+        "tier": {
+          "id": 5,
+          "value": "Out Of Scope"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "b070af79-3cd3-4a18-a1a8-cdc959cb230d",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "autodiscover.uzleuven.be",
+        "tier": {
+          "id": 4,
+          "value": "Tier 1"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "8b381824-af47-4ff5-b4b7-f74e2db4518d",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "ecrf.uzleuven.be",
+        "tier": {
+          "id": 4,
+          "value": "Tier 1"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "7bbb6f60-8478-4220-9964-a59a19930c61",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "extranet-asa.uzleuven.be",
+        "tier": {
+          "id": 4,
+          "value": "Tier 1"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "c202f78e-36e6-4fee-8a6c-0946e49d5d7c",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "extranet.uzleuven.be",
+        "tier": {
+          "id": 4,
+          "value": "Tier 1"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "ac7f7fef-d72d-4e57-b631-02f2f34c6a7d",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "liquidfiles.uzleuven.be",
+        "tier": {
+          "id": 4,
+          "value": "Tier 1"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "9610c26a-249f-49bc-8503-3aa13b651a53",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "mx1.uzleuven.be",
+        "tier": {
+          "id": 4,
+          "value": "Tier 1"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "eaf71ac2-7481-4f72-a54c-1ed7b4d2f092",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "mx2.uzleuven.be",
+        "tier": {
+          "id": 4,
+          "value": "Tier 1"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "4c194c7f-dfb3-4bfe-9a60-6fa920a7e451",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "pcrstudioruzb.uzleuven.be",
+        "tier": {
+          "id": 4,
+          "value": "Tier 1"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "fc0da308-40c1-4515-9049-0286ee9b5bfc",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "prddsplunkhf.uzleuven.be",
+        "tier": {
+          "id": 4,
+          "value": "Tier 1"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "dacd1b57-40a0-4311-89ca-136cc17848f3",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "sts.uzleuven.be",
+        "tier": {
+          "id": 4,
+          "value": "Tier 1"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "6597e1e2-1732-445d-aa96-5da0c0be000c",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "www.uzleuven.be",
+        "tier": {
+          "id": 4,
+          "value": "Tier 1"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "6113cc6c-ffb4-41fe-9733-6d858f1e449a",
+        "type": {
+          "id": 4,
+          "value": "IpRange"
+        },
+        "endpoint": "193.58.149.121,193.58.149.98,193.58.149.82,193.58.149.101,193.58.149.107,193.58.149.108,193.58.149.111",
+        "tier": {
+          "id": 3,
+          "value": "Tier 2"
+        },
+        "description": "These are the ip's used by our reverse proxy.\nThe Host header will determine the bounty tier.\nIf a report is submitted where the Host header is not used we will default to Tier 2.",
+        "requiredSkills": []
+      },
+      {
+        "id": "4fe80617-7f85-456c-a5b2-e5bab8d946d6",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "wp5-truststroke.uzleuven.be",
+        "tier": {
+          "id": 3,
+          "value": "Tier 2"
+        },
+        "description": "* access to /api/ should only work from BE or NL ip's\n* access to other paths or / should not work",
+        "requiredSkills": []
+      },
+      {
+        "id": "06218499-54dd-49a9-b7f2-7834a5c9872e",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "cardsonline.azdiest.be",
+        "tier": {
+          "id": 3,
+          "value": "Tier 2"
+        },
+        "description": "This webapp should return a http 403 error due to ip whitelisting.",
+        "requiredSkills": []
+      },
+      {
+        "id": "f9ecf923-4c6b-44ca-893e-74fa523dc479",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "liquidfilestest.uzleuven.be",
+        "tier": {
+          "id": 3,
+          "value": "Tier 2"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "ad5dd5ac-bbf0-4a62-b022-f239a8cf148c",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "random.uzleuven.be/random/",
+        "tier": {
+          "id": 3,
+          "value": "Tier 2"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "1f44dae3-4ea4-4673-8e7b-3290d1b54798",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "teststs.uzleuven.be",
+        "tier": {
+          "id": 3,
+          "value": "Tier 2"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "5bae08cf-755f-478c-8ad4-e8a30a8a8781",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "w1.uzleuven.be",
+        "tier": {
+          "id": 3,
+          "value": "Tier 2"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "3af10de8-c59e-4e1a-948a-85048701f246",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "cardsonlinetst.azdiest.be",
+        "tier": {
+          "id": 2,
+          "value": "Tier 3"
+        },
+        "description": "This webapp should return a http 403 error due to ip whitelisting.",
+        "requiredSkills": []
+      },
+      {
+        "id": "7f220393-f2fc-4875-9bb4-b963fb12d261",
+        "type": {
+          "id": 7,
+          "value": "Wildcard"
+        },
+        "endpoint": "*.kwsdose.be",
+        "tier": {
+          "id": 2,
+          "value": "Tier 3"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "4d6abe3b-411d-4741-bd3c-6c3251701f9b",
+        "type": {
+          "id": 7,
+          "value": "Wildcard"
+        },
+        "endpoint": "*.playuzleuven.be",
+        "tier": {
+          "id": 2,
+          "value": "Tier 3"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "a171d676-c21d-4a67-ac60-d39b18c6a518",
+        "type": {
+          "id": 7,
+          "value": "Wildcard"
+        },
+        "endpoint": "*.uzleuven.*",
+        "tier": {
+          "id": 2,
+          "value": "Tier 3"
+        },
+        "description": "#### *.uzleuven.be (tier 3) only applies to everything that hasn't been listed in the scope.",
+        "requiredSkills": []
+      },
+      {
+        "id": "bcbed5db-851c-4eb4-8d25-0719afeca74e",
+        "type": {
+          "id": 7,
+          "value": "Wildcard"
+        },
+        "endpoint": "*.contactallerg(y|ie).uzleuven.be",
+        "tier": {
+          "id": 1,
+          "value": "No Bounty"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "3fc686dc-98ec-401b-baca-ec12fba83a47",
+        "type": {
+          "id": 7,
+          "value": "Wildcard"
+        },
+        "endpoint": "*.mir.uzleuven.be",
+        "tier": {
+          "id": 1,
+          "value": "No Bounty"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "d550f603-ae7a-43e2-966d-55c601c49bcf",
+        "type": {
+          "id": 7,
+          "value": "Wildcard"
+        },
+        "endpoint": "*dev.uzleuven.be",
+        "tier": {
+          "id": 1,
+          "value": "No Bounty"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "db58d7f5-c49f-46bf-b66f-16bc7e0724c8",
+        "type": {
+          "id": 7,
+          "value": "Wildcard"
+        },
+        "endpoint": "*idp*.uzleuven.be",
+        "tier": {
+          "id": 1,
+          "value": "No Bounty"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "137f76db-1d3d-4d89-bd9b-d0d4ac4118c6",
+        "type": {
+          "id": 7,
+          "value": "Wildcard"
+        },
+        "endpoint": "*stag*.uzleuven.be",
+        "tier": {
+          "id": 1,
+          "value": "No Bounty"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "3ff358dd-332c-4740-a45e-8e431d22f27a",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "files.uzleuven.be",
+        "tier": {
+          "id": 1,
+          "value": "No Bounty"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "59517604-6243-450c-97fa-797aedd6316f",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "kumulus.uzleuven.be",
+        "tier": {
+          "id": 1,
+          "value": "No Bounty"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "3836d26f-e85b-4596-9281-6d6041d059cb",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "mijnacc.uzleuven.be",
+        "tier": {
+          "id": 1,
+          "value": "No Bounty"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "e4c42dbf-a6b7-48fb-97ec-188ac64a5dd2",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "mirc.uzleuven.be",
+        "tier": {
+          "id": 1,
+          "value": "No Bounty"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "12809bc2-0c94-4913-9026-ec710d1fe546",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "prddnighting01.uzleuven.be",
+        "tier": {
+          "id": 1,
+          "value": "No Bounty"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "937db7d7-e97c-48eb-a076-c261851eeaad",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "w1.uzleuven.be/random",
+        "tier": {
+          "id": 1,
+          "value": "No Bounty"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "65fa9e9a-7693-4aba-acc8-ff7453896c1e",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "ziekenhuisschool.be",
+        "tier": {
+          "id": 1,
+          "value": "No Bounty"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "a87b4329-ca55-4a3e-8a32-0e5ead6e383a",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "jobs.uzleuven.be",
+        "tier": {
+          "id": 5,
+          "value": "Out Of Scope"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "dd45d032-4889-4930-b789-994fe7cd8043",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "uzleuven.atlassian.net",
+        "tier": {
+          "id": 5,
+          "value": "Out Of Scope"
+        },
+        "description": null,
+        "requiredSkills": []
+      },
+      {
+        "id": "c3f52eaf-eed5-4fa8-89c2-5f730c129570",
+        "type": {
+          "id": 1,
+          "value": "Url"
+        },
+        "endpoint": "vacatures.uzleuven.be",
+        "tier": {
+          "id": 5,
+          "value": "Out Of Scope"
+        },
+        "description": null,
+        "requiredSkills": []
+      }
+    ]
+  },
+  "rulesOfEngagement": {
+    "attachments": [],
+    "id": "c32179d7-c4cd-56f8-b5c1-c64f20367817",
+    "createdAt": 1648558776,
+    "content": {
+      "description": "\n#### Our promise to you\n\n* We are happy to respond to any questions, please use the button in the right top corner for this.\n* We respect the safe harbour clause that you can find below\n\n#### Your promise to us\n* Provide detailed but to-the point reproduction steps\n* Include a clear attack scenario. How will this affect us exactly?\n* Remember: quality over quantity!\n* Please do *not* discuss or post vulnerabilities without our consent (including PoC's on YouTube and Vimeo)\n* Please do *not* use automatic scanners -be creative and do it yourself! We cannot accept any submissions found by using automatic scanners. Scanners also won't improve your skills, and can cause a high server load (we'd like to put our time in thanking researchers rather than blocking their IP's 😉)\n\n",
+      "testingRequirements": {
+        "intigritiMe": true,
+        "automatedTooling": 5,
+        "userAgent": null,
+        "requestHeader": "X-Intigriti-Username: {Username}"
+      },
+      "safeHarbour": true
+    }
+  },
+  "webLinks": {
+    "detail": "https://app.intigriti.com/auth/dashboard?redirect=/programs/uz leuven/uzleuven/detail"
+  },
+  "industry": "Hospitals & Healthcare"
+}

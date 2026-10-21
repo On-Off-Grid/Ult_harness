@@ -12,9 +12,12 @@ Commands
           mocked component calls (no packets, no LLM calls, no palace writes).
   hunt  — one-command supervisor (S8.4): preflight → scope (Intigriti
           auto-fetch) → init → dry-run ($0 gate) → boots `run` as a child →
-          launches the tools you list in --tools, all egressing through the
+          launches the tools (default: the enabled registry tools; override
+          with --tools, incl. `--tools none`), all egressing through the
           :8080 scope gate. Ctrl-C saves workspace/<p>/hunt_state.json and
           tears down in order; resume it any time with `main.py resume`.
+          Bare form `hunt <program>` is the fully-automated path (platform
+          defaults to intigriti; RoE attribution headers flow through init).
   resume — rebuild a paused/ended hunt from its saved state (re-preflight,
           re-init, re-dry-run, reboot, relaunch the same tools/targets).
   stop  — shut down an in-process run (single-process model; also prints the
@@ -74,7 +77,13 @@ SCOPED_PLATFORMS = (
 )
 
 # S8.4: tool keys advertised in `hunt --help` (registry is the source of truth).
-from tools.registry import ALL_KEYS as _TOOL_KEYS  # noqa: E402
+from tools.registry import ALL_KEYS as _TOOL_KEYS, ENABLED_KEYS as _ENABLED_KEYS  # noqa: E402
+
+# Bare `hunt <program>` launches the enabled tools by default so the hunt
+# produces traffic from the first boot. `--tools` still wins (including
+# `--tools none` for a control-plane-only run); disabled tools are skipped
+# by the launcher with a note either way.
+DEFAULT_TOOLS = ",".join(_ENABLED_KEYS)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -119,6 +128,42 @@ def _infer_format(scope_file: str) -> str:
     return "bugcrowd_json"
 
 
+def _roe_headers(scope_file: str, researcher: str) -> tuple:
+    """Read the RoE testing-requirements a fetched scope file carries
+    (``_testing_requirements`` — emitted by scripts/fetch_intigriti_scope.py;
+    absent on every other platform/hand-written file, so this is a no-op
+    there — generic by construction).
+
+    Returns ``(extra_headers, user_agent_override)``:
+    * ``requestHeader`` "Name: {Username}" -> parsed to one header, with
+      ``{Username}`` substituted by the operator's ``--researcher`` value —
+      the program's attribution header lands in the profile/headers.txt
+      without any manual edit;
+    * ``userAgent`` -> a non-empty string overrides the platform default UA.
+
+    Malformed / missing files degrade to ``({}, "")`` — RoE parsing must
+    never break init.
+    """
+    try:
+        data = json.loads(Path(scope_file).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}, ""
+    tr = data.get("_testing_requirements")
+    if not isinstance(tr, dict):
+        return {}, ""
+    extra: dict = {}
+    rh = str(tr.get("requestHeader") or "").strip()
+    if rh:
+        if ":" in rh:
+            name, value = (s.strip() for s in rh.split(":", 1))
+        else:
+            name, value = rh, ""
+        if name:
+            extra[name] = value.replace("{Username}", researcher)
+    ua = str(tr.get("userAgent") or "").strip()
+    return extra, ua
+
+
 def cmd_init(args) -> int:
     platform = Platform(args.platform)
     scope = _parse_scope(args)
@@ -138,11 +183,20 @@ def cmd_init(args) -> int:
 
     # Platform profile → header export (single source of truth, design v2.1 §1.4)
     headers = PlatformHeaders.for_platform(platform, args.researcher)
+    # RoE testing-requirements (when the scope file carries them) extend the
+    # platform defaults: the program's own attribution header and UA override
+    # flow through init like any other profile header.
+    roe_extra, roe_ua = _roe_headers(args.scope_file, args.researcher)
     profile = PlatformProfile(
         platform=platform.value,
         program_handle=scope.program_handle,
         researcher_username=args.researcher,
-        headers={**headers.headers, **({"User-Agent": headers.user_agent} if headers.user_agent else {})},
+        headers={
+            **headers.headers,
+            **roe_extra,
+            **({"User-Agent": roe_ua or headers.user_agent}
+               if (roe_ua or headers.user_agent) else {}),
+        },
         rate_limit_rps=scope.rate_limit_rps,
         max_concurrent_requests=scope.max_concurrent,
         auth={},
@@ -176,6 +230,14 @@ def cmd_init(args) -> int:
     print(f"[init] program      : {scope.program_handle} ({platform.value})")
     print(f"[init] in-scope     : {len(scope.in_scope)} rule(s)")
     print(f"[init] out-of-scope : {len(scope.out_of_scope)} rule(s)")
+    if roe_extra:
+        for name, value in roe_extra.items():
+            print(f"[init] RoE header   : {name}: {value} (from the program's "
+                  f"RoE testing-requirements — {args.researcher!r} substituted "
+                  f"for {{Username}})")
+    if roe_ua:
+        print(f"[init] RoE UA       : {roe_ua} (overrides the platform "
+              f"default User-Agent)")
     print(f"[init] workspace    : {workspace}")
     print(f"[init] profile      : {profile_path}")
     print(f"[init] headers      : {headers_path}")
@@ -492,15 +554,24 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_hunt = sub.add_parser("hunt",
                             help="one-command supervisor: preflight → scope → init "
-                                 "→ dry-run → boot + launch your --tools (S8.4)")
+                                 "→ dry-run → boot + launch tools (S8.4). "
+                                 "Bare form: `main.py hunt <program>`")
+    p_hunt.add_argument("program", nargs="?", default=None, metavar="PROGRAM",
+                        help="program handle (e.g. uzleuven) — the only "
+                             "argument a bare `hunt` needs")
     p_hunt.add_argument("--platform", choices=[p.value for p in Platform],
-                        help="program platform (intigriti auto-fetches scope "
-                             "when no --scope-file is given)")
-    p_hunt.add_argument("--program", required=True, help="program handle")
+                        default=None,
+                        help="program platform — defaults to intigriti (the "
+                             "only auto-fetchable platform); required together "
+                             "with --scope-file for any other platform")
+    p_hunt.add_argument("--program", dest="program_flag", default=None,
+                        help="program handle (alternative to the positional)")
     p_hunt.add_argument("--tools", default=None,
                         help="comma list of registry keys — "
                              + ", ".join(sorted(_TOOL_KEYS))
-                             + " — omit to boot the control plane only")
+                             + " — omit to launch the default enabled tools "
+                             f"({DEFAULT_TOOLS}); --tools none = control plane "
+                             "only")
     p_hunt.add_argument("--targets", default=None,
                         help="comma list of in-scope hosts for per-target tools "
                              "(default: first exact-match hosts, capped by "
@@ -538,6 +609,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def cmd_hunt(args) -> int:
     from orchestrator.hunt_launcher import cmd_hunt as _hunt
+    # The handle may come positionally (`hunt uzleuven`) or via --program;
+    # the positional wins when both are given.
+    if getattr(args, "program", None) is None:
+        args.program = getattr(args, "program_flag", None)
     return _hunt(args)
 
 

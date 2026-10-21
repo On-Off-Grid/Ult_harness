@@ -102,6 +102,63 @@ class TestInit:
             (workspace / "acme-corp" / "scope.json").read_text())
         assert scope["platform"] == "intigriti"
 
+    def test_init_merges_roe_testing_requirements(self, workspace):
+        # The UZ Leuven shape: the fetched scope file carries
+        # _testing_requirements with requestHeader "X-Intigriti-Username:
+        # {Username}". init must parse the "Name: value" form, substitute the
+        # --researcher value for {Username}, keep the platform default
+        # headers, and export the merged set to headers.txt — no manual edit.
+        roe_scope = tmp_roe_scope(workspace.parent)
+        proc = _run_cli(
+            "init", "--platform", "intigriti", "--program", "acme-corp",
+            "--scope-file", str(roe_scope), "--researcher", "onoffgrid",
+            "--workspace", str(workspace),
+        )
+        assert proc.returncode == 0, proc.stderr
+        assert "RoE header" in proc.stdout
+
+        profile = json.loads(
+            (workspace / "acme-corp" / "platform_profile.json").read_text())
+        headers = profile["headers"]
+        assert headers["X-Intigriti-Username"] == "onoffgrid"
+        # Platform default attribution stays alongside the RoE header.
+        assert headers["X-Intigriti-Researcher"] == "onoffgrid"
+
+        flat = (workspace / "acme-corp" / "headers.txt").read_text()
+        assert "X-Intigriti-Username: onoffgrid" in flat
+
+    def test_init_merges_roe_user_agent_override(self, workspace):
+        # A non-null RoE userAgent overrides the platform default UA.
+        roe_scope = tmp_roe_scope(workspace.parent,
+                                  user_agent="acme-bounty/1.0 (onoffgrid)")
+        proc = _run_cli(
+            "init", "--platform", "intigriti", "--program", "acme-corp",
+            "--scope-file", str(roe_scope), "--researcher", "onoffgrid",
+            "--workspace", str(workspace),
+        )
+        assert proc.returncode == 0, proc.stderr
+        profile = json.loads(
+            (workspace / "acme-corp" / "platform_profile.json").read_text())
+        assert profile["headers"]["User-Agent"] == "acme-bounty/1.0 (onoffgrid)"
+
+
+def tmp_roe_scope(base_dir, user_agent: str | None = None) -> Path:
+    """A Bugcrowd-shaped scope file carrying _testing_requirements (the meta
+    key scripts/fetch_intigriti_scope.py emits; absent for other platforms)."""
+    path = Path(base_dir) / "roe_scope.json"
+    path.write_text(json.dumps({
+        "targets": [{"name": "a.acme-corp.com", "category": "URL",
+                     "in_scope": True}],
+        "_testing_requirements": {
+            "requestHeader": "X-Intigriti-Username: {Username}",
+            "userAgent": user_agent,
+            "automatedTooling": 5,
+            "intigritiMe": True,
+            "safeHarbour": True,
+        },
+    }), encoding="utf-8")
+    return path
+
 
 class TestDryRunGate:
     """Gate S3: --dry-run on a sample scope walks config → gate → admiral →

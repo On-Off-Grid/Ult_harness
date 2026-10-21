@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc 3.11" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>hunt_cheatsheet.md</title>
+  <style>
+    /* Default styles provided by pandoc.
+    ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+    */
+    html {
+      color: #1a1a1a;
+      background-color: #fdfdfd;
+    }
+    body {
+      margin: 0 auto;
+      max-width: 36em;
+      padding-left: 50px;
+      padding-right: 50px;
+      padding-top: 50px;
+      padding-bottom: 50px;
+      hyphens: auto;
+      overflow-wrap: break-word;
+      text-rendering: optimizeLegibility;
+      font-kerning: normal;
+    }
+    @media (max-width: 600px) {
+      body {
+        font-size: 0.9em;
+        padding: 12px;
+      }
+      h1 {
+        font-size: 1.8em;
+      }
+    }
+    @media print {
+      html {
+        background-color: white;
+      }
+      body {
+        background-color: transparent;
+        color: black;
+      }
+      p, h2, h3 {
+        orphans: 3;
+        widows: 3;
+      }
+      h2, h3, h4 {
+        page-break-after: avoid;
+      }
+    }
+    p {
+      margin: 1em 0;
+    }
+    a {
+      color: #1a1a1a;
+    }
+    a:visited {
+      color: #1a1a1a;
+    }
+    img {
+      max-width: 100%;
+    }
+    svg {
+      height: auto;
+      max-width: 100%;
+    }
+    h1, h2, h3, h4, h5, h6 {
+      margin-top: 1.4em;
+    }
+    h5, h6 {
+      font-size: 1em;
+      font-style: italic;
+    }
+    h6 {
+      font-weight: normal;
+    }
+    ol, ul {
+      padding-left: 1.7em;
+      margin-top: 1em;
+    }
+    li > ol, li > ul {
+      margin-top: 0;
+    }
+    blockquote {
+      margin: 1em 0 1em 1.7em;
+      padding-left: 1em;
+      border-left: 2px solid #e6e6e6;
+      color: #606060;
+    }
+    code {
+      white-space: pre-wrap;
+      font-family: Menlo, Monaco, Consolas, 'Lucida Console', monospace;
+      font-size: 85%;
+      margin: 0;
+      hyphens: manual;
+    }
+    pre {
+      margin: 1em 0;
+      overflow: auto;
+    }
+    pre code {
+      padding: 0;
+      overflow: visible;
+      overflow-wrap: normal;
+    }
+    .sourceCode {
+     background-color: transparent;
+     overflow: visible;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid #1a1a1a;
+      height: 1px;
+      margin: 1em 0;
+    }
+    table {
+      margin: 1em 0;
+      border-collapse: collapse;
+      width: 100%;
+      overflow-x: auto;
+      display: block;
+      font-variant-numeric: lining-nums tabular-nums;
+    }
+    table caption {
+      margin-bottom: 0.75em;
+    }
+    tbody {
+      margin-top: 0.5em;
+      border-top: 1px solid #1a1a1a;
+      border-bottom: 1px solid #1a1a1a;
+    }
+    th {
+      border-top: 1px solid #1a1a1a;
+      padding: 0.25em 0.5em 0.25em 0.5em;
+    }
+    td {
+      padding: 0.125em 0.5em 0.25em 0.5em;
+    }
+    header {
+      margin-bottom: 4em;
+      text-align: center;
+    }
+    #TOC li {
+      list-style: none;
+    }
+    #TOC ul {
+      padding-left: 1.3em;
+    }
+    #TOC > ul {
+      padding-left: 0;
+    }
+    #TOC a:not(:hover) {
+      text-decoration: none;
+    }
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: 1.5em;}
+    div.column{flex: auto;}
+    @media screen {
+    div.columns{gap: min(4vw, 1.5em);}
+    div.column{overflow-x: auto;}
+    }
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+  </style>
+</head>
+<body>
+<header id="title-block-header">
+<h1 class="title">hunt_cheatsheet.md</h1>
+</header>
+<h1 id="hunt-cheat-sheet-ult_harness-v3.0-s8">Hunt Cheat Sheet —
+Ult_harness (v3.0, S8)</h1>
+<p>The on-hunt-day guide: how to run the harness to full potential and
+how to read the failure modes. Canonical state lives in
+<code>OPERATIONS.md</code>; the plan in
+<code>specs/assembly_plan_v3.md</code>; this file is the field
+manual.</p>
+<p>Want the concrete copy-paste version for one real program?
+<code>docs/examples/uzleuven_intigriti.md</code> — a verified
+step-by-step setup for UZ Leuven (Intigriti), from scope fetch to
+teardown.</p>
+<p>Want the mental model — how the 8 component repos fit together, who
+orchestrates whom, and what’s wired vs. designed?
+<code>docs/hunt_workflow.md</code>.</p>
+<p>Read order on hunt day: §1 preflight → §2 scope intake → §3.0
+one-command launch (+ pause/resume) or §3 manual live run → §5 levers
+(while it runs) → §4 only when something is wrong.</p>
+<h2 id="what-the-harness-actually-is-60-second-model">0. What the
+harness actually is (60-second model)</h2>
+<p>The control plane (<code>:8001</code>) does NOT scan. It is the
+guardrail brain: egress/scope enforcement, model routing, budget ledger,
+OOB correlation, triage state machine, reports, memory filing. The 8
+fetched components do the recon/exploit work and <strong>call
+back</strong> into the harness:</p>
+<pre><code>component (via egress proxy :8080)
+  └─&gt; POST /api/triage/callback   (finding in)
+  └─&gt; POST /api/v1/llm/route      (LLM task out → 4-tier router)
+  └─&gt; POST /api/tokens/record     (token mirroring)
+Interactsh (OOB)  ──15s poll──&gt;  admiral.poll_oob()   (blind confirmation)
+you (browser)     ── :8001/ ──  war room (state / findings / budget / routing)</code></pre>
+<p>A <strong>“component”</strong> = one of the 8 external tools
+<code>scripts/fetch_components.sh</code> clones into the repo root as
+sibling dirs (<code>jsleak/</code>, <code>claude-bug-bounty/</code>,
+<code>adhd/</code>, <code>Agent-Reach/</code>,
+<code>Awesome-Redteam/</code>, <code>CL4R1T4S/</code>,
+<code>T3MP3ST/</code>, <code>mempalace/</code> — canonical list in
+<code>CREDITS.md</code>). The recon/exploit ones are what you point at
+in-scope targets; they egress through the proxy and call back with
+findings.</p>
+<p>So a “live hunt” = <code>main.py run</code> (spawns mitmdump
+<code>:8080</code> + uvicorn <code>:8001</code> + OOB poll loop) + the
+operator working the components + watching the war room.
+<code>run</code> alone is <strong>control plane only — by
+design</strong> (the harness never scans, §0): if you boot it without
+tools, the war room idles at <code>tasks_total: 0</code> and the egress
+log stays empty. That is not a bug. Since S8.4 there is a one-command
+supervisor (<code>main.py hunt</code>, §3.0) that boots all of that and
+launches the components — and since 2026-10-21 the bare form
+<code>main.py hunt &lt;handle&gt;</code> is the default path: platform
+defaults to Intigriti (the only auto-fetchable platform) and the
+<strong>enabled</strong> registry tools launch, so a fresh hunt produces
+traffic from the first boot (<code>--tools none</code> opts back into
+control-plane-only).</p>
+<h2 id="preflight-15-min-before-every-hunt">1. Preflight (15 min, before
+every hunt)</h2>
+<ol type="1">
+<li><p>Suite green (no network, no keys needed):</p>
+<pre><code>cd Ult_harness
+.venv/bin/python -m pytest tests/ -q</code></pre>
+<p>→ expect <code>294 passed, 1 warning</code> (the warning is an
+unrelated httpx2/Starlette note).</p></li>
+<li><p><code>.env</code> at repo root (gitignored; copy from
+<code>.env.example</code>). Minimum viable:</p>
+<ul>
+<li><code>GROQ_API_KEY</code> — the $0 workhorse
+(<code>gpt-oss-120b</code> primary, <code>qwen/qwen3.8-27b</code> heavy
+reasoning).</li>
+<li><code>OPENROUTER_API_KEY</code> — the $10-top-up <code>:free</code>
+failover pool.</li>
+<li><code>INTIGRITI_API_KEY</code> (optional) — used
+<strong>only</strong> by <code>scripts/fetch_intigriti_scope.py</code>
+(Intigriti scope export via the beta Researcher API). The control plane
+itself never calls platform APIs — this key serves your manual scope
+fetch, not <code>main.py</code>.</li>
+<li><code>INTERACTSH_MODE=public</code> (default) — or
+<code>selfhosted</code> + <code>INTERACTSH_URL</code> (+ optional
+<code>INTERACTSH_API_TOKEN</code>), or <code>off</code> (blind findings
+will then <strong>never</strong> auto-confirm — a deliberate choice, not
+a failure).</li>
+<li>Leave <code>LOCAL_HEAVY_URL</code> blank (GPU stays off; Groq 27B
+covers heavy at $0).</li>
+</ul></li>
+<li><p>Ollama up on <code>:11434</code> (the $0 floor; the S4.3
+invariant is “no paid spend when no paid keys” — an Ollama-only run is
+the safe rehearsal mode).</p></li>
+<li><p><code>which mitmdump</code> — if missing, <strong>fix it, don’t
+hunt</strong>: a live run without mitmproxy logs a warning and runs with
+egress <strong>unguarded</strong> (the scope gate has no enforcement
+point).</p></li>
+<li><p>Live mode uses the repo venv (system python is PEP-668
+locked):</p>
+<pre><code>.venv/bin/python main.py ...</code></pre>
+<p>The test suite runs under the same venv python
+(fastapi/uvicorn/pytest live there):
+<code>.venv/bin/python -m pytest tests/ -q</code>.</p></li>
+</ol>
+<h2 id="scope-intake-per-platform-templates-in-docsscope_templates">2.
+Scope intake (per platform — templates in
+<code>docs/scope_templates/</code>)</h2>
+<p><code>init</code> needs a scope file in one of four shapes. Templates
+(with a field-mapping README) live in
+<code>docs/scope_templates/</code>:</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Platform</th>
+<th>Scope source</th>
+<th>Feed <code>--format</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HackerOne</td>
+<td>Program-scope CSV export
+(<code>asset_identifier,asset_type,eligible_for_bounty</code>)</td>
+<td><code>hackerone_csv</code> (<code>.csv</code> auto)</td>
+</tr>
+<tr>
+<td>Bugcrowd</td>
+<td>Program-scope JSON <code>{"targets":[…]}</code></td>
+<td><code>bugcrowd_json</code> (<code>.json</code> auto)</td>
+</tr>
+<tr>
+<td>Intigriti</td>
+<td><strong>Researcher API</strong> —
+<code>scripts/fetch_intigriti_scope.py</code> (or manual fallback,
+§2b)</td>
+<td><code>bugcrowd_json</code></td>
+</tr>
+<tr>
+<td>YesWeHack</td>
+<td><strong>Manual browser</strong> (no API)</td>
+<td><code>bugcrowd_json</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Creating a scope file from scratch</strong> (any
+platform):</p>
+<ol type="1">
+<li><p>Copy the right template:
+<code>cp docs/scope_templates/bugcrowd_scope.template.json scope.json</code></p></li>
+<li><p>Replace the example <code>targets</code> with the program’s real
+scope — and <strong>transcribe the out-of-scope list too</strong>
+(<code>"in_scope": false</code>): the egress gate blocks on those rules
+and logs every block with a reason to
+<code>workspace/&lt;p&gt;/logs/egress_proxy.jsonl</code> (your proof of
+discipline).</p></li>
+<li><p>Field mapping (details in the template README): <code>name</code>
+starting with <code>*.</code> → WILDCARD, anything else → EXACT;
+<code>category</code> → description; extra keys (like the template’s
+<code>_comment</code> block) are ignored by the importer.</p></li>
+<li><p>Run <code>init</code> with the <strong>platform tag matching the
+program</strong> — it sets the attribution header
+(<code>X-YesWeHack-User</code>, <code>X-Intigriti-Researcher</code>, …).
+<code>--researcher</code> defaults to <code>onoffgrid</code> (the
+cross-platform handle):</p>
+<pre><code>.venv/bin/python main.py init --platform yeswehack \
+    --program &lt;handle&gt; --scope-file scope.json \
+    --format bugcrowd_json --workspace ./workspace</code></pre></li>
+<li><p><strong>Verify the counts against the program page</strong> —
+<code>init</code> prints the in/out-of-scope rule counts; if they
+disagree, stop and fix the file before trusting anything downstream.
+Then check on disk: <code>workspace/&lt;p&gt;/scope.json</code> (the
+rules the gate enforces), <code>headers.txt</code> (attribution export),
+<code>platform_profile.json</code>.</p></li>
+<li><p><strong>CIDR / IP range / regex in the program’s scope?</strong>
+The importers only auto-assign exact/wildcard — hand-edit
+<code>workspace/&lt;p&gt;/scope.json</code> after <code>init</code>
+(<code>"match_type": "cidr"</code> / <code>"regex"</code>, plus the
+<code>rate_limit_rps</code> / <code>max_concurrent</code> pacing knobs;
+see
+<code>docs/scope_templates/scope.template.canonical.json</code>).</p></li>
+</ol>
+<h3 id="a.-yeswehack-manual-browser-scope-fetch-no-api-exists">2a.
+YesWeHack — manual browser scope fetch (no API exists)</h3>
+<ol type="1">
+<li><p>In your live browser (logged in), open the program’s scope/rules
+page.</p></li>
+<li><p>Copy every in-scope asset (URLs, wildcards, IP ranges)
+<strong>and</strong> the out-of-scope list into a Bugcrowd-shaped
+<code>scope.json</code>:</p>
+<pre><code>{&quot;targets&quot;: [
+  {&quot;name&quot;: &quot;*.victim.fr&quot;,     &quot;category&quot;: &quot;URL&quot;, &quot;in_scope&quot;: true},
+  {&quot;name&quot;: &quot;api.victim.fr&quot;,   &quot;category&quot;: &quot;URL&quot;, &quot;in_scope&quot;: true},
+  {&quot;name&quot;: &quot;staging.victim.fr&quot;,&quot;category&quot;: &quot;URL&quot;, &quot;in_scope&quot;: false}
+]}</code></pre>
+<p>Also check the program’s eligibility flags — anything excluded
+(staging, no-bounty domains, VDP-only assets) goes
+<code>"in_scope": false</code>.</p></li>
+<li><p><code>init --platform yeswehack --format bugcrowd_json</code> as
+in step 4 above — the platform tag (not the format) is what sets the
+<code>X-YesWeHack-User</code> header.</p></li>
+<li><p><strong>Re-verify against the program page after init</strong> —
+the manual copy is the one step where human error enters.</p></li>
+</ol>
+<h3 id="b.-intigriti-api-path-key-in-.env">2b. Intigriti — API path (key
+in <code>.env</code>)</h3>
+<p>Intigriti’s beta Researcher API covers scope end-to-end via the
+script (probe-verified live 2026-10-17; docs at
+<code>intigriti-researcher-api.readme.io/reference</code>):</p>
+<pre><code>.venv/bin/python scripts/fetch_intigriti_scope.py list     # your programs: handle + id
+.venv/bin/python scripts/fetch_intigriti_scope.py &lt;handle&gt; -o scope.json
+.venv/bin/python main.py init --platform intigriti --program &lt;handle&gt; \
+    --scope-file scope.json --format bugcrowd_json --workspace ./workspace</code></pre>
+<ul>
+<li><code>list</code> → <code>GET /v1/programs</code> (Bearer
+<code>INTIGRITI_API_KEY</code> from <code>.env</code>); fetch →
+<code>GET /v1/programs/{id}</code> (domains + rules of engagement). Rate
+limit: 600 GETs / 5 min.</li>
+<li>Tier mapping (the script’s <strong>editorial</strong> call — verify
+against the program page): tier <code>No Bounty</code> →
+<code>"in_scope": false</code>; URL/Wildcard/API/Web → wildcard if
+<code>*.</code> else exact; Subnet/IP → <code>cidr</code>; Custom/Regex
+→ <code>regex</code>; <strong>mobile apps (iOS/Android bundles) are
+dropped from the scope file</strong> — they’re not egress-able through
+mitmproxy — and listed under <code>_mobile_apps_manual_only</code> for
+manual testing.</li>
+<li>The export prints whether RoE text is present. The script does not
+enforce RoE — <strong>you</strong> do (read it before the live
+run).</li>
+<li>The fetch also embeds the program’s <strong>structured RoE
+testing-requirements</strong> under the
+<code>_testing_requirements</code> meta key (<code>requestHeader</code>,
+<code>userAgent</code>, <code>automatedTooling</code>,
+<code>intigritiMe</code>, <code>safeHarbour</code>) when the program
+carries any. <code>init</code> merges that meta into
+<code>platform_profile.json</code> + <code>headers.txt</code>
+automatically: a <code>requestHeader</code> of the form
+<code>"Name: {Username}"</code> is parsed and <code>{Username}</code>
+substituted with your <code>--researcher</code> value; a non-null
+<code>userAgent</code> overrides the platform default UA. A program’s
+attribution header therefore lands in <code>headers.txt</code> with
+<strong>no manual editing</strong> — for any program (the key is simply
+absent when the platform/program provides nothing, and the whole step is
+a no-op on hand-copied scope files).</li>
+<li>The script’s only third-party dep is <code>requests</code> (already
+in the repo <code>.venv</code>; it is <em>not</em> a control-plane dep —
+run it with <code>.venv/bin/python</code>, not system python).</li>
+<li><strong>Fallback:</strong> API 403 (terms changed → re-accept in the
+Intigriti UI, or rate-limited → wait) / 404 (beta drift) → do the §2a
+manual path with <code>--platform intigriti</code>.</li>
+<li><strong>Full worked example</strong> (Intigriti end-to-end, verified
+commands): <code>docs/examples/uzleuven_intigriti.md</code>.</li>
+</ul>
+<p>Rehearse first: dry-run the whole graph against a scratch workspace
+(zero packets, zero cost; a report must land in
+<code>ws/&lt;program&gt;/reports/</code> with a $0 budget — the exact
+recipe is OPERATIONS §3.2).</p>
+<h2 id="what-the-report-will-say-about-severity-initial-classifier">2.5
+What the report will say about severity (initial classifier)</h2>
+<p>There is <strong>no severity setting</strong> — and it is
+<strong>not</strong> critical/exceptional by default.
+<code>reporting/taxonomy.py</code> applies a static, category-driven
+<em>initial</em> CVSS; the report’s “Severity (initial)” line is a
+triage aid, and the final severity call is yours (workflow stage 7 — the
+war-room confirm/reject is where it lands).</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Finding category</th>
+<th>Initial CVSS 3.1 vector</th>
+<th>Band</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SQLi, RCE</td>
+<td><code>AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H</code> (9.7)</td>
+<td><strong>Critical</strong></td>
+</tr>
+<tr>
+<td>SSRF</td>
+<td><code>AV:N/AC:L/PR:N/UI:N/S:C/C:H/I:N/A:N</code></td>
+<td><strong>High</strong></td>
+</tr>
+<tr>
+<td>All other 12 categories (XSS, IDOR, LFI, XXE, JWT, …)</td>
+<td><code>AV:N/AC:L/PR:N/UI:R/S:U/C:H/I:L/A:N</code></td>
+<td><strong>Medium</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Practical effect: a plain XSS reports <strong>Medium
+(initial)</strong> — don’t be surprised, and don’t “fix” the classifier
+to make reports look scarier or safer. Refine the vector <strong>per
+finding</strong> at submit time (impact statement in the report, final
+severity in the platform UI). The <code>cvss</code> lib (the
+<code>reporting</code> extra) is available if you want real score
+computation later.</p>
+<h2 id="one-command-launch-s8.4-and-pausing-for-a-logout">3.0
+One-command launch (S8.4) — and pausing for a logout</h2>
+<p>The program handle is the <strong>only required argument</strong>
+(2026-10-21):</p>
+<pre><code>cd Ult_harness
+.venv/bin/python main.py hunt &lt;handle&gt;</code></pre>
+<p>Steering overrides (all optional):</p>
+<pre><code>.venv/bin/python main.py hunt &lt;handle&gt; --tools jsleak \
+    [--targets host1,host2] [--max-targets 3]
+.venv/bin/python main.py hunt &lt;handle&gt; --tools none    # control plane only
+.venv/bin/python main.py hunt &lt;handle&gt; --platform hackerone \
+    --scope-file copied.json                           # other platforms</code></pre>
+<p>Bare <code>hunt &lt;handle&gt;</code> is fully automated by these
+defaults:</p>
+<ul>
+<li><strong>platform</strong> → <code>intigriti</code> — the only
+platform the harness can auto-fetch scope from. Any other platform needs
+<code>--platform &lt;p&gt;</code> together with a
+<code>--scope-file</code> (a hand-copied file does not state where it
+came from, so <code>hunt</code> refuses to guess).</li>
+<li><strong>tools</strong> → the <strong>enabled</strong> registry tools
+(<code>jsleak,cbb</code> today), so a fresh hunt produces traffic from
+the first boot instead of idling. An explicit <code>--tools</code> list
+still wins; <code>--tools none</code> = control plane only.</li>
+<li><strong>scope cache</strong> →
+<code>scope_files/&lt;handle&gt;.json</code> is fetched on demand; a
+cached fetch that predates the current fetch-script schema (no RoE
+metadata) is <strong>refreshed automatically</strong> — hand-written
+scope files are never touched.</li>
+</ul>
+<p><code>hunt</code> runs §3’s manual sequence <strong>for you</strong>,
+in one foreground process: preflight (one-line <code>✗</code> on
+failure) → scope (Intigriti auto-fetch via the Researcher API when no
+<code>--scope-file</code> is given; other platforms need
+<code>--scope-file</code>) → <code>init</code> (merges the program’s RoE
+attribution header / UA override into <code>headers.txt</code> when the
+scope file carries them) → <strong>dry-run ($0 gate — non-$0 stops the
+command)</strong> → boots <code>run</code> as a child (its boot order
+and ordered teardown are reused untouched) → spawns the selected tools
+with the <code>HARNESS_*</code>/proxy env injected. After the tool plan,
+<code>hunt</code> prints the program’s structured RoE facts
+(<code>[hunt] RoE : …</code> — attribution header, UA override,
+<code>automatedTooling</code> level, safe harbour) plus a ⚠ line when
+<code>automatedTooling</code> is at or below 1 while tools are
+launching. The RoE free text is <strong>never</strong> enforced by the
+harness — you read it. Ctrl-C tears down in order (tools first, then the
+control plane) and saves
+<code>workspace/&lt;p&gt;/hunt_state.json</code>.</p>
+<p><strong>The operator picks the tools per program scope</strong> —
+that is the steering lever (cheatsheet §0: the control plane never
+scans). Registry (<code>tools/registry.py</code>):</p>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>key</th>
+<th>what it is</th>
+<th>how it launches</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>jsleak</code></td>
+<td>JS secrets/links scanner (Go)</td>
+<td>1 process, in-scope URL list on stdin, <code>-json</code> (auto
+<code>go build</code> once)</td>
+</tr>
+<tr>
+<td><code>cbb</code></td>
+<td>claude-bug-bounty ReAct agent (Python)</td>
+<td>1 agent <strong>per <code>--targets</code> host</strong> (default:
+first 3 exact-match hosts)</td>
+</tr>
+<tr>
+<td><code>adhd</code></td>
+<td>ideation (aux)</td>
+<td>disabled by default — needs a per-hunt prompt, not safe to
+auto-run</td>
+</tr>
+<tr>
+<td><code>agent-reach</code></td>
+<td>OSINT daemon (aux)</td>
+<td>disabled by default — not a target scanner in v1</td>
+</tr>
+</tbody>
+</table>
+<p>Corpora (<code>Awesome-Redteam/</code>, <code>CL4R1T4S/</code>) are
+reference material, not processes — they are not launchable by design. A
+tool that fails its own pre-check is <strong>skipped with a note, the
+hunt continues</strong> (fail-open).</p>
+<p><strong>Pausing (operator logout):</strong> Ctrl-C at any time. It is
+an <em>honest</em> pause, not a suspended animation — a live hunt’s
+state splits in two (verified against the code; there is no other
+persistence):</p>
+<ul>
+<li><strong>Durable on disk</strong> (survives): <code>reports/</code>,
+<code>evidence/</code>, <code>logs/egress_proxy.jsonl</code>,
+<code>scope.json</code>, <code>platform_profile.json</code>.</li>
+<li><strong>Volatile</strong> (dies with the <code>run</code> process):
+the admiral’s task/finding maps, triage state, the token/budget ledger,
+the Interactsh session, launched tool processes.</li>
+</ul>
+<p><code>hunt_state.json</code> records both halves
+(<code>durable</code> snapshot + <code>volatilized_on_stop</code> list).
+To continue:</p>
+<pre><code>.venv/bin/python main.py resume --program &lt;handle&gt; --workspace ./workspace</code></pre>
+<p><code>resume</code> re-runs preflight → (re-)scope → init → dry-run →
+boot → the same tools/targets (CLI
+<code>--tools</code>/<code>--targets</code> override the saved
+selection). Guard rails: it <strong>refuses to double-boot</strong> if a
+control plane survived the logout and still serves <code>:8001</code>
+(prints the exact teardown), and it works after a hard logout too — the
+state file is written at boot and on every exit, with the control-plane
+pid, so there is always a resumable marker.</p>
+<p>The manual path below is the fallback / understanding layer:
+<code>hunt</code> runs exactly these steps.</p>
+<h2 id="the-live-run-step-by-step">3. The live run (step by step)</h2>
+<pre><code>cd Ult_harness
+.venv/bin/python main.py init  --platform &lt;p&gt; --program &lt;handle&gt; \
+    --scope-file &lt;file&gt; --workspace ./workspace     # --researcher defaults to onoffgrid
+.venv/bin/python main.py run   --program &lt;handle&gt; --workspace ./workspace</code></pre>
+<p><code>run</code> (no <code>--dry-run</code>) does, in order:</p>
+<ol type="1">
+<li>Router boot: <code>startup_health_check()</code> (raises if
+<strong>no</strong> backend is configured at all) +
+<code>startup_discovery()</code> (reconciles every enabled provider’s
+live <code>/models</code> catalog — fail-open).</li>
+<li>Opens the hunt-wide Interactsh session (fail-open — a dead OOB never
+blocks the hunt).</li>
+<li>Bootstraps auth sessions <strong>only</strong> if
+<code>platform_profile.json</code> carries <code>auth</code> (else
+skipped).</li>
+<li>Spawns <code>mitmdump --listen-port 8080</code> with the egress
+addon.</li>
+<li>Starts uvicorn on <code>:8001</code> (harness API + war room, same
+origin).</li>
+<li>Starts the OOB poll loop (every 15 s →
+<code>admiral.poll_oob()</code>).</li>
+</ol>
+<p>Teardown on Ctrl-C is ordered: OOB poll loop → Interactsh deregister
+→ mitmdump. <code>main.py stop</code> (takes no arguments) prints the
+manual teardown order if you need it.</p>
+<p><strong>While it runs:</strong></p>
+<ul>
+<li>Open <code>http://127.0.0.1:8001/</code> (or
+<code>/war_room</code>). Four panels: <strong>Hunt State</strong>,
+<strong>Findings</strong>, <strong>Budget</strong> (per-provider buckets
++ GPU-hour meter + $0.50 session projection), <strong>Model
+Routing</strong> (per-provider tier / lane / state / catalog drift). The
+UI renders <strong>no keys</strong> (<code>has_key</code> booleans
+only).</li>
+<li>Operator controls: <strong>HALT / RESUME</strong> (idempotent kill
+switch — a halted admiral skips new dispatches) and <strong>confirm /
+reject</strong> per finding.</li>
+<li>Work the components — they egress through <code>:8080</code>; every
+request is scope-gated and logged to
+<code>workspace/&lt;program&gt;/logs/egress_proxy.jsonl</code>.
+(<code>hunt</code> launches the ones you select from the registry —
+§3.0; manually started components need the <code>HARNESS_*</code>
+exports, see <code>docs/examples/uzleuven_intigriti.md</code> Step
+5.)</li>
+<li>Findings arrive at <code>POST /api/triage/callback</code> and walk
+RECEIVED → VALIDATING → CONFIRMED (or get noise-filtered /
+rejected).</li>
+<li>Blind classes (SSRF / RCE / XXE) reach CONFIRMED
+<strong>only</strong> via an Interactsh callback: the poll loop
+attributes it (enrich + confirm, or synthesizes an
+<code>oob_&lt;hex8&gt;</code> finding). Callbacks are claimed exactly
+once.</li>
+</ul>
+<h2 id="pitfalls-errors-symptom-cause-fix">4. Pitfalls &amp; errors
+(symptom → cause → fix)</h2>
+<table>
+<colgroup>
+<col style="width: 33%" />
+<col style="width: 33%" />
+<col style="width: 33%" />
+</colgroup>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>NoBudgetError</code> at dispatch</td>
+<td>Every stop in the task’s chain hard-failed — <strong>or</strong>
+Ollama-only config + a paid-preferred task (by design: the S4.3
+invariant)</td>
+<td>Check <code>GET /api/v1/providers</code> (<code>has_key</code>),
+then the provider’s actual error (401/404 = bad key or model ID; 429 =
+throttled). Ollama-only: that task simply can’t run paid — expected, not
+a bug.</td>
+</tr>
+<tr>
+<td>Response carries <code>raw["empty_content"]=true</code></td>
+<td>S8.2 guard: 200 but blank text even after one 3× retry
+(160→480)</td>
+<td>The router already did everything it will — the
+<strong>agent</strong> decides what to do with a flagged-empty answer.
+Consensus can never confirm on empty text (fail-closed). Usually
+transient reasoning-model behavior: re-dispatch the task; if it
+persists, the provider is degraded/throttled.</td>
+</tr>
+<tr>
+<td>Frequent 429s / slow tasks</td>
+<td>Free-tier RPD limits (OpenRouter <code>:free</code> = 1,000/day;
+per-provider limiters)</td>
+<td>The router rotates within a provider automatically. If the whole
+pool is exhausted the task fails → wait, or
+<code>HARNESS_DISABLE_&lt;PROV&gt;=1</code> the flapping provider to
+shorten the chain.</td>
+</tr>
+<tr>
+<td>Blind findings stuck in VALIDATING</td>
+<td>No OOB callback arrived</td>
+<td>Check <code>INTERACTSH_MODE</code> (<code>off</code> = they’ll never
+confirm — by choice), the Interactsh console for the payload, and
+<code>INTERACTSH_API_TOKEN</code> for self-hosted. The hunt is NOT
+broken — OOB correlation is fail-open.</td>
+</tr>
+<tr>
+<td><code>mitmdump not found on PATH</code> warning at boot</td>
+<td>mitmproxy missing</td>
+<td><strong>Stop.</strong> Egress is unguarded.
+<code>pip install mitmproxy</code> in the venv, re-run.</td>
+</tr>
+<tr>
+<td>A provider silently absent from routing</td>
+<td>Placeholder key in <code>.env</code> (<code>sk-or-xxxx…</code>,
+empty, <code>ghp_REPLACE_ME</code>)</td>
+<td><code>core/config.py::_clean_key</code> normalizes placeholders to
+<em>unset</em>, so the provider drops off the chain quietly. Put in a
+real key or <code>HARNESS_DISABLE_&lt;PROV&gt;=1</code> deliberately;
+verify with <code>GET /api/v1/providers</code>.</td>
+</tr>
+<tr>
+<td>GitHub Models 401s in the chain</td>
+<td>The GitHub Models inference service was <strong>retired upstream
+2026-07-30</strong></td>
+<td>Not a bug — PAID_PREMIUM falls through to the OpenRouter paid stop.
+Optionally drop <code>GITHUB_TOKEN</code> from <code>.env</code> to stop
+the 401 noise.</td>
+</tr>
+<tr>
+<td>Memory lookups return nothing</td>
+<td>mempalace’s default URL is <code>:8000</code>, but its shipped HTTP
+surfaces are the daemon (ephemeral port) + MCP JSON-RPC — no confirmed
+<code>:8000</code> REST <code>/search</code></td>
+<td>Best-effort fail-open by design; the hunt never fails on this. If
+memory matters, run mempalace explicitly and point
+<code>HARNESS_MEMPALACE_URL</code> at a live surface (see OPERATIONS §5
+known-gap 3).</td>
+</tr>
+<tr>
+<td><code>pip install</code> refused on system python</td>
+<td>PEP-668 externally-managed environment</td>
+<td>Always the repo venv: <code>.venv/bin/python</code> for live mode
+<strong>and</strong> the test suite (fastapi/uvicorn/pytest live
+there).</td>
+</tr>
+<tr>
+<td>War room “doesn’t exist” on <code>:3333</code></td>
+<td>Legacy v2.x docs (T3MP3ST) are archived now</td>
+<td>The war room is same-origin on <strong><code>:8001</code></strong>
+(S7). Open <code>http://127.0.0.1:8001/</code>.</td>
+</tr>
+<tr>
+<td>Dry-run shows non-zero budget</td>
+<td>Regression — a dry-run makes no real LLM calls</td>
+<td>Fail the hunt setup and report it. Dry-run budget must be $0.</td>
+</tr>
+<tr>
+<td>An old <code>ghp_</code> PAT in the shell env</td>
+<td>Once printed in session logs; shell env overrides <code>.env</code>
+(dotenv <code>override=False</code>)</td>
+<td>Rotate it at GitHub, then <code>unset GITHUB_TOKEN</code> / scrub
+the shell profile.</td>
+</tr>
+<tr>
+<td>Scope rule count off after <code>init</code></td>
+<td>Copy-paste error in the manual scope file (or a stray space in the
+wildcard)</td>
+<td>Re-check <code>scope.json</code> against the program page. Wildcards
+need the exact <code>*.</code> prefix.</td>
+</tr>
+<tr>
+<td>Intigriti API 403 from the fetch script</td>
+<td>Terms of engagement changed (re-accept in the Intigriti UI)
+<strong>or</strong> the 600-GETs/5-min rate limit</td>
+<td>Re-accept ToE in the UI and retry; if rate-limited, wait ~5 min.
+Persistent 403/404 (beta API drift) → use the §2a manual browser path
+instead.</td>
+</tr>
+<tr>
+<td><code>INTIGRITI_API_KEY</code> set but “not used”</td>
+<td>By design — the control plane never calls platform APIs</td>
+<td>The key only serves <code>scripts/fetch_intigriti_scope.py</code>
+(your scope export). If you don’t hunt Intigriti, ignore it. It is never
+sent anywhere except <code>api.intigriti.com</code>.</td>
+</tr>
+<tr>
+<td>Component works fine standalone but ignores the harness</td>
+<td><code>HARNESS_*</code> env vars not exported (component-side wiring
+is env-gated + fail-open by design)</td>
+<td>Run the component <strong>under</strong> <code>main.py run</code>
+(it exports them), or export <code>HARNESS_*</code> yourself for a
+manually-started component (see <code>patches/local-tweaks.md</code>
+§7).</td>
+</tr>
+<tr>
+<td><code>hunt</code> exits 1 at preflight with a <code>✗</code>
+line</td>
+<td>By design: the one-line reason is the whole problem</td>
+<td><code>mitmdump not found</code> → install mitmproxy in the venv.
+<code>already serving :8001</code> → a previous hunt/run is still up:
+tear it down (<code>main.py stop</code> order) or <code>resume</code>
+it. <code>no LLM backend</code> → check <code>.env</code> keys /
+Ollama.</td>
+</tr>
+<tr>
+<td><code>resume</code> refuses: “no saved state”</td>
+<td>The hunt never reached boot (state is written at boot + on every
+stop)</td>
+<td>Re-run <code>hunt</code> — nothing to resume yet.</td>
+</tr>
+<tr>
+<td><code>resume</code> refuses: “a control plane is already up on
+:8001”</td>
+<td>Hard logout (SIGKILL) killed <code>hunt</code> but the child
+<code>run</code> survived, still holding
+<code>:8001</code>/<code>:8080</code></td>
+<td>Do the printed teardown (<code>kill &lt;saved pid&gt;</code> or
+<code>pgrep -f 'main.py run --program &lt;p&gt;'</code>), then re-run
+the same <code>resume</code>.</td>
+</tr>
+<tr>
+<td><code>[hunt] note : &lt;tool&gt;: skipped — …</code> during
+boot</td>
+<td>That tool failed its own pre-check (missing binary/deps) — fail-open
+by design</td>
+<td>The hunt runs without it. Fix the tool (e.g. <code>go build</code>
+for jsleak, deps for cbb) and re-<code>hunt</code>/<code>resume</code>
+when you want it in.</td>
+</tr>
+<tr>
+<td>After <code>resume</code>, a blind finding can’t confirm</td>
+<td>Pause deregistered the Interactsh session — callbacks fired mid-gap
+never correlate</td>
+<td>Stated honestly in <code>hunt_state.json</code>
+(<code>volatilized_on_stop</code>). Re-register the payload and re-send
+if the blind test still matters.</td>
+</tr>
+<tr>
+<td><code>oob: register HTTP 400 (… already exists …)</code> at
+boot</td>
+<td>The public Interactsh keys sessions by User-Agent; a stale same-day
+session under the engine’s OLD shared UA (<code>ult-harness/3.0</code>)
+rejected every new register, so OOB stayed unregistered (blind classes
+can’t confirm)</td>
+<td>Fixed 2026-10-21: unique per-instance UA + one retry with a rotated
+UA on exactly this error — a fresh <code>hunt</code> self-heals. Only a
+hunt booted before that fix can still show the warning: restart it
+(<code>hunt &lt;handle&gt;</code>).</td>
+</tr>
+<tr>
+<td>War room “active” but idle: <code>active_specialists: 0</code>,
+<code>tasks_total: 0</code>, egress log empty</td>
+<td>You booted <code>main.py run</code> alone — control plane only
+<strong>by design</strong> (S0: the harness never scans), with no tools
+launched</td>
+<td>Restart via <code>main.py hunt &lt;handle&gt;</code> (defaults
+launch the enabled tools) or launch a component through the
+<code>HARNESS_*</code> env block.</td>
+</tr>
+<tr>
+<td><code>[hunt] scope : cached … predates the current fetch schema — re-fetching</code></td>
+<td>The cached <code>scope_files/&lt;p&gt;.json</code> was produced by
+an older fetch script (no RoE metadata)</td>
+<td>Expected, one-time, self-heals — the fresh fetch (with the RoE meta
+<code>init</code> merges) is written back.</td>
+</tr>
+<tr>
+<td><code>[hunt] ✗ --platform is required when --scope-file is passed</code></td>
+<td>A hand-copied scope file does not state which platform it came from
+— guessing would be a wrong default</td>
+<td>Add <code>--platform &lt;p&gt;</code> (or drop
+<code>--scope-file</code> on Intigriti and let <code>hunt</code>
+fetch).</td>
+</tr>
+<tr>
+<td><code>[hunt] RoE : …</code> advisory line at boot</td>
+<td>Informational: the program’s structured RoE testing-requirements
+(attribution header, UA override, <code>automatedTooling</code> level,
+safe harbour). The <code>⚠</code> variant fires when
+<code>automatedTooling</code> ≤ 1 while tools launch</td>
+<td>Nothing to fix — but the RoE <strong>free text</strong> is never
+machine-checked; read it (a program that bans automated-scanner findings
+rejects them regardless of the scale).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="running-it-to-full-potential-the-levers">5. Running it to full
+potential (the levers)</h2>
+<ul>
+<li><strong>Cost stays $0 by default.</strong> Groq’s free tier carries
+primary (<code>gpt-oss-120b</code>) + heavy reasoning
+(<code>qwen/qwen3.8-27b</code>); OpenRouter <code>:free</code>
+(post-$10-top-up), Mistral, and Gemini join the failover pool. Paid
+overflow (PAID_PREMIUM via an OpenRouter paid stop) exists but only
+fires on paid-preferred tasks. Keep
+<code>HARNESS_MAX_SESSION_COST</code> low (default 10.00; the war room
+projects the $0.50 session line) so a bad day can’t become a bill.</li>
+<li><strong>Every LLM call is lane-aware.</strong> SAFE vs RESTRICTED
+data is scrubbed pre-call (<code>compliance/scrub.py</code>); the war
+room’s RESTRICTED re-route counter moving is the scrub firing.</li>
+<li><strong>Two-model consensus on validation tasks is
+fail-closed</strong> — a missing, failing, or empty partner never
+confirms a finding. Don’t “fix” a stuck confirmation by loosening
+consensus; let the finding stay VALIDATING.</li>
+<li><strong>OOB is your blind-class weapon.</strong> Payloads register
+per-context (<code>generate_payload(context=...)</code>), and the 15 s
+poll confirms SSRF/RCE/XXE with zero manual work — that’s the S8.1
+payoff.</li>
+<li><strong>The evidence trail is automatic.</strong> Reports →
+<code>workspace/&lt;p&gt;/reports/</code>, raw + OOB evidence →
+<code>workspace/&lt;p&gt;/evidence/</code>, every egress decision
+(allow/block + reason) →
+<code>workspace/&lt;p&gt;/logs/egress_proxy.jsonl</code>. S8.4’s gate is
+literally this trail staying intact.</li>
+<li><strong>GPU is a config flip, not a project.</strong> Once the AMD
+Developer GPU hours are confirmed: set <code>LOCAL_HEAVY_URL</code> (+
+<code>LOCAL_HEAVY_API_KEY</code>, hourly cost) in <code>.env</code> and
+the LOCAL_HEAVY tier joins — everything else unchanged. Until then
+Groq’s 27B covers heavy reasoning at $0.</li>
+<li><strong>Rehearse, then hunt.</strong> An Ollama-only live run is a
+zero-spend full-path rehearsal (S4.3: with no paid keys, no task can
+resolve to a paid tier). Do one before every new program.</li>
+</ul>
+<h2 id="post-hunt-close-the-s8.4-gate">6. Post-hunt (close the S8.4
+gate)</h2>
+<ol type="1">
+<li>A real report on disk (<code>workspace/&lt;p&gt;/reports/</code>)
+for every confirmed finding.</li>
+<li>Evidence trail intact: raw responses + OOB callbacks present in
+<code>evidence/</code>.</li>
+<li>Per-provider budget buckets ≤ the $0.50 session line (war room
+Budget panel).</li>
+<li>Operator confirmations recorded in the war room (confirm/reject per
+finding).</li>
+<li><strong>S8.5 visual smoke</strong> — do it <em>during</em> the hunt,
+not after: the four panels render; the RESTRICTED re-route counter moves
+when a scrub fires; the red <strong>HALT</strong> actually stops
+dispatch.</li>
+<li>Tidy up: teardown in order (<code>main.py stop</code>), archive the
+workspace, note anything new in OPERATIONS §5 (known gaps). Never commit
+<code>.env</code>; rotate any PAT that leaked into logs.</li>
+</ol>
+</body>
+</html>

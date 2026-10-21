@@ -5,23 +5,33 @@ new operator) and you have nothing else, this file is enough to verify the
 harness end-to-end. It tells you **what exists, what is verified, how to run
 it, and what is still open.**
 
-> **One-sentence status (2026-10-17):** Phases S0–S4, **S5 (a+b)**, **S7**
-> (the operator war-room dashboard on `:8001`), and **S8.1–S8.3** are complete
-> and committed — the control plane is built, audited (S2), integrated
-> end-to-end (S4), has real OOB correlation (Interactsh, S8.1), the
-> reasoning-model empty-content guard (S8.2, live-probe PASS), and the S8.3
-> housekeeping sweep (timezone-aware timestamps, trimmed `pyproject` deps),
-> has a **260-test suite all green (1 warning, unrelated httpx2/Starlette note)**,
-> and its **S5b live provider verification PASSED post top-up** (5/6 enabled
-> providers returned a live 200 logged per provider/tier/lane + paid overflow
-> resolved; `github_models` reported UNVERIFIABLE because the upstream service
-> was retired 2026-07-30). **S8.4 is now build-complete:** a one-command
+> **One-sentence status (2026-10-21):** Phases S0–S4, **S5 (a+b)**, **S7**
+> (the operator war-room dashboard on `:8001`), and **S8.1–S8.4** are
+> complete and committed — the control plane is built, audited (S2),
+> integrated end-to-end (S4), has real OOB correlation (Interactsh, S8.1),
+> the reasoning-model empty-content guard (S8.2, live-probe PASS), and the
+> S8.3 housekeeping sweep (timezone-aware timestamps, trimmed `pyproject`
+> deps). **S8.4 is build-complete and live-hunt-hardened:** a one-command
 > `main.py hunt` supervisor (preflight → Intigriti auto-fetch scope → init →
-> $0 dry-run → boot → operator-selected `--tools`, all egress-gated) plus an
-> honest pause/resume (`main.py resume`, `workspace/<p>/hunt_state.json`).
-> Next: **the first live DataCamp hunt** (operator-authorized; runbook in
-> `docs/examples/datacamp_intigriti.md`) + **S8.5** war-room visual smoke
-> (during S8.4).
+> $0 dry-run → boot → tools, all egress-gated) plus an honest pause/resume
+> (`main.py resume`, `workspace/<p>/hunt_state.json`). The 2026-10-21
+> live-hunt pass made bare `main.py hunt <handle>` the fully-automated path:
+> platform defaults to intigriti (the only auto-fetchable platform), the
+> enabled registry tools launch by default (`--tools none` opts out), the
+> program's RoE attribution header / UA override merge through `init` with
+> no manual `headers.txt` edit (structured RoE facts print as a boot
+> advisory), stale generated scope caches re-fetch automatically, and OOB
+> self-heals from stale public-Interactsh sessions (per-instance UA + one
+> rotated-UA retry on the exact "already exists" 400, fail-open kept).
+> Suite: **294 tests all green** (1 warning, unrelated httpx2/Starlette
+> note). **S5b live provider verification PASSED post top-up** (5/6 enabled
+> providers returned a live 200 logged per provider/tier/lane + paid
+> overflow resolved; `github_models` reported UNVERIFIABLE because the
+> upstream service was retired 2026-07-30).
+> Next: **the live UZ Leuven hunt, restarted** on the new path (`main.py
+> hunt uzleuven`; runbook in `docs/examples/uzleuven_intigriti.md` —
+> verified 2026-10-19, live-hunt defects + fixes logged 2026-10-21) +
+> **S8.5** war-room visual smoke (during the hunt).
 
 ---
 
@@ -72,17 +82,22 @@ All commands assume you are in the `Ult_harness/` repo root.
 
 ```bash
 cd Ult_harness
-python3 -m pytest tests/ -q
-# → 260 passed   (154 baseline: 104 S2 audit + 45 S3 core + 5 S4 E2E,
+.venv/bin/python -m pytest tests/ -q
+# → 294 passed   (154 baseline: 104 S2 audit + 45 S3 core + 5 S4 E2E,
 #                 + 25 S5 router gates, + 20 S7 war-room gates,
 #                 + 5 S5b regression, + 23 S8.1 OOB, + 12 S8.2 empty-content,
-#                 + 21 S8.4 hunt launcher)
+#                 + 21 S8.4 hunt launcher, + 13 UZ Leuven scope pipeline,
+#                 + 21 hunt-automation fixes 2026-10-21: OOB stale-session
+#                   UA rotation, RoE header merge through init, bare
+#                   `hunt <handle>` platform/tools defaults, stale
+#                   scope-cache refresh)
 ```
 
-- No venv, no network (the one health-check test targets a closed localhost
-  port), no writes to the real `./workspace`.
+- Venv python (fastapi/uvicorn/pytest live there), no network (the one
+  health-check test targets a closed localhost port), no writes to the real
+  `./workspace`.
 - The S4.3 live-Ollama round-trip test **auto-skips** if Ollama is down; the
-  other 259 pass regardless.
+  other 293 pass regardless.
 
 ### 3.2 Run the end-to-end dry-run (Gate S4.1 / Gate S6)
 
@@ -286,6 +301,47 @@ Be explicit about these — do not paper over them.
    `memory`, `pyyaml`+`cvss` → `reporting`); the never-imported `requests` was
    dropped. (c) the mempalace `:8000` note above re-confirmed.
 
+**S8.4 + the first live hunt — updated 2026-10-21.** The first live UZ
+Leuven hunt ran and exposed three live-only defects, all fixed generically
+(no program-specific code) and pinned by tests — suite now **294**:
+
+1. **OOB stale-session collision.** The public Interactsh service keys
+   sessions by User-Agent; the engine's fixed `ult-harness/3.0` UA still had
+   a live same-day session, so every `POST /register` answered 400
+   "correlation-id provided already exists" and OOB stayed unregistered
+   (blind classes could never confirm). Fix: unique per-instance UA
+   (`ult-harness/3.0/<12-hex>`) + exactly one retry with a rotated UA on
+   that exact error; fail-open preserved. (`compliance/oob_engine.py`,
+   `tests/test_s2_header_oob.py`.)
+2. **RoE attribution header missing from `headers.txt`.** UZ Leuven's RoE
+   mandates `X-Intigriti-Username: {Username}`; previously that was a manual
+   `headers.txt` edit per program. Fix: `scripts/fetch_intigriti_scope.py`
+   embeds the structured RoE testing-requirements under `_testing_requirements`
+   in the scope file (v2 generator marker), and `main.py init` parses
+   `requestHeader` ("Name: {Username}" form, `{Username}` ← `--researcher`)
+   plus any non-null `userAgent` override into `platform_profile.json` +
+   `headers.txt` — generic: the key is absent on other platforms / hand-
+   copied files, so the merge is a no-op there.
+3. **"No progress" in the war room.** The hunt had been booted as plain
+   `main.py run` — control plane only by design (S0: the harness never
+   scans) — with no tools, so `tasks_total: 0` and an empty egress log.
+   Fix: bare `main.py hunt <handle>` is now the fully-automated path —
+   platform defaults to `intigriti` (the only auto-fetchable platform;
+   `--scope-file` without `--platform` is refused), tools default to the
+   enabled registry tools (`jsleak,cbb`; `--tools none` = control plane
+   only, now also honored by `resume`), stale generated `scope_files/<p>.json`
+   caches re-fetch automatically (operator-owned files untouched), and the
+   structured RoE facts print at boot as an advisory (`[hunt] RoE : …`,
+   ⚠ line when `automatedTooling` ≤ 1 while tools launch — the 0–5 scale
+   semantics are unverified, so it is reported, never acted on).
+   (`main.py`, `orchestrator/hunt_launcher.py`, `tools/registry.py`,
+   `tests/test_s8_hunt_launcher.py`, `tests/test_s3_main.py`.)
+
+Runbook: `docs/examples/uzleuven_intigriti.md` (debug log 2 records this
+pass). The live hunt must be **restarted** on the new path (`main.py hunt
+uzleuven`) for the fixes to take effect; the old `run`-only process predates
+them.
+
 **S8 is in progress — S8.1 + S8.2 + S8.3 done, S8.4 (first live hunt) next
 (2026-10-17).** S0–S7 are done and the control plane is proven to *run*; it is
 not yet proven to *hunt*.
@@ -373,10 +429,10 @@ fetch script need keys.
 |---|---|
 | `OPERATIONS.md` | **This file.** The entry point. |
 | `specs/assembly_plan_v3.md` | The approved plan (S0–S7) + gate definitions + current status. |
-| `docs/hunt_cheatsheet.md` | **The hunt-day field manual** — one-command launch + pause/resume (§3.0, S8.4), step-by-step live run (fallback layer), pitfall/error table (incl. the Intigriti API path and the manual browser scope path for API-less platforms, e.g. YesWeHack). Read it on hunt day. |
+| `docs/hunt_cheatsheet.md` | **The hunt-day field manual** — one-command launch (bare `hunt <handle>`: platform + tools defaults, RoE boot advisory) + pause/resume (§3.0, S8.4), step-by-step live run (fallback layer), pitfall/error table (incl. the Intigriti API path, the manual browser scope path for API-less platforms, and the 2026-10-21 live-hunt symptom rows). Read it on hunt day. |
 | `docs/hunt_workflow.md` | **The mental model** — the 3 kinds of git repo (control plane vs. the 8 fetched components vs. services), the process/port map, the end-to-end hunt workflow, the component→harness contract (3 channels), the admiral's two modes, how components interact with each other (mempalace hub), and the honest "wired vs. designed" split (the open finding-bridge). |
 | `docs/scope_templates/` | Scope-file templates + field-mapping README (HackerOne CSV, Bugcrowd/YesWeHack JSON, canonical file with all four match types). |
-| `docs/examples/datacamp_intigriti.md` | Verified copy-paste runbook for one real program (DataCamp, Intigriti): one-command `hunt` path up top, manual steps 0–7 as the fallback/understanding layer, pause/resume section, symptom table. |
+| `docs/examples/uzleuven_intigriti.md` | Verified copy-paste runbook for one real program (UZ Leuven, Intigriti; verified 2026-10-19, live-hunt defects fixed 2026-10-21): one-command `hunt <handle>` path up top, manual steps 0–7 as the fallback/understanding layer, pause/resume section, the program's scope map (tiers 1–3 + all 20 out-of-scope), two debug logs (the scope-shape defects + the live-hunt OOB/RoE/automation defects, and their fixes), and a symptom table. Supersedes the DataCamp example (same shape; still in git history). |
 | `tools/registry.py` | The `hunt` tool registry — which components are launchable, how (cmd/needs/stdin), and why the disabled ones are disabled (S8.4). |
 | `orchestrator/hunt_launcher.py` | The `hunt`/`resume` supervisor — preflight, Intigriti auto-fetch, $0 dry-run gate, child boot, tool spawn, ordered teardown, `hunt_state.json` snapshot (S8.4). |
 | `docs/archive/legacy-v2/` | Archived v2.1.x doc corpus (10 files, incl. the phase-by-phase `progress_report.md`) — historical record, superseded; see its `README.md`. |

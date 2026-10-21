@@ -11,9 +11,31 @@ Stubs for future platforms (YesWeHack, Intigriti) can be added later.
 
 import csv
 import json
+import re
 from typing import List
 
 from core.types import TargetScope, ScopeRule, ScopeMatchType, Platform
+
+
+def _match_type_from_name(name: str) -> ScopeMatchType:
+    """Infer a rule's match type from its pattern shape.
+
+    The Bugcrowd JSON format carries no explicit match-type field, so this
+    heuristic is the only signal. It must stay in sync with the output of
+    `scripts/fetch_intigriti_scope.py` (which pre-shapes patterns for it):
+
+    * regex syntax anywhere (`(y|ie)`, classes, anchors) -> REGEX
+    * IP / CIDR only (`1.2.3.4`, `10.0.0.0/8`, `1.2.3.4/32`) -> CIDR
+    * leading `*` in any position (`*.x`, `*dev.x`, `*idp*.x`) -> WILDCARD
+    * anything else -> EXACT
+    """
+    if re.search(r"[()|{}[\]\\^$]", name):
+        return ScopeMatchType.REGEX
+    if re.fullmatch(r"[0-9.]+(?:/\d+)?", name):
+        return ScopeMatchType.CIDR
+    if name.startswith("*"):
+        return ScopeMatchType.WILDCARD
+    return ScopeMatchType.EXACT
 
 
 class ScopeImporter:
@@ -30,11 +52,7 @@ class ScopeImporter:
                 asset_type = (row.get("asset_type") or "").strip()
                 eligible = (row.get("eligible_for_bounty") or "true").lower() == "true"
 
-                match_type = (
-                    ScopeMatchType.WILDCARD
-                    if "*. " in identifier or identifier.startswith("*.")
-                    else ScopeMatchType.EXACT
-                )
+                match_type = _match_type_from_name(identifier)
                 rule = ScopeRule(
                     pattern=identifier,
                     match_type=match_type,
@@ -62,11 +80,12 @@ class ScopeImporter:
             category = target.get("category", "") or ""
             in_scope_flag = target.get("in_scope", True)
 
-            match_type = (
-                ScopeMatchType.WILDCARD
-                if "*. " in name or name.startswith("*.")
-                else ScopeMatchType.EXACT
-            )
+            # Trust an explicit match_type (hand-edited or platform-specific
+            # exports); otherwise infer from the pattern shape.
+            explicit = (target.get("match_type") or "").strip().lower()
+            match_type = (ScopeMatchType(explicit)
+                          if explicit in {m.value for m in ScopeMatchType}
+                          else _match_type_from_name(name))
             rule = ScopeRule(
                 pattern=name,
                 match_type=match_type,

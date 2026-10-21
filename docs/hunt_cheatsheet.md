@@ -5,8 +5,8 @@ read the failure modes. Canonical state lives in `OPERATIONS.md`; the plan in
 `specs/assembly_plan_v3.md`; this file is the field manual.
 
 Want the concrete copy-paste version for one real program?
-`docs/examples/datacamp_intigriti.md` — a verified step-by-step setup for
-DataCamp (Intigriti), from scope fetch to teardown.
+`docs/examples/uzleuven_intigriti.md` — a verified step-by-step setup for
+UZ Leuven (Intigriti), from scope fetch to teardown.
 
 Want the mental model — how the 8 component repos fit together, who
 orchestrates whom, and what's wired vs. designed? `docs/hunt_workflow.md`.
@@ -38,19 +38,25 @@ back with findings.
 
 So a "live hunt" = `main.py run` (spawns mitmdump `:8080` + uvicorn `:8001` +
 OOB poll loop) + the operator working the components + watching the war room.
+`run` alone is **control plane only — by design** (the harness never scans,
+§0): if you boot it without tools, the war room idles at `tasks_total: 0`
+and the egress log stays empty. That is not a bug.
 Since S8.4 there is a one-command supervisor (`main.py hunt`, §3.0) that
-boots all of that and launches the components you select — the operator
-still drives (tool choice, targets, confirm/reject), the typing is gone.
+boots all of that and launches the components — and since 2026-10-21 the
+bare form `main.py hunt <handle>` is the default path: platform defaults to
+Intigriti (the only auto-fetchable platform) and the **enabled** registry
+tools launch, so a fresh hunt produces traffic from the first boot
+(`--tools none` opts back into control-plane-only).
 
 ## 1. Preflight (15 min, before every hunt)
 
 1. Suite green (no network, no keys needed):
 
        cd Ult_harness
-       PYTHONPATH=.venv/lib/python3.13/site-packages python3 -m pytest tests/ -q
+       .venv/bin/python -m pytest tests/ -q
 
-   → expect `260 passed, 1 warning` (the warning is an unrelated
-   httpx2/Starlette note; the 21 extra tests cover the S8.4 hunt launcher).
+   → expect `294 passed, 1 warning` (the warning is an unrelated
+   httpx2/Starlette note).
 2. `.env` at repo root (gitignored; copy from `.env.example`). Minimum viable:
    - `GROQ_API_KEY` — the $0 workhorse (`gpt-oss-120b` primary,
      `qwen/qwen3.8-27b` heavy reasoning).
@@ -72,8 +78,8 @@ still drives (tool choice, targets, confirm/reject), the typing is gone.
 
        .venv/bin/python main.py ...
 
-   The test suite runs on system python (aiohttp + mitmproxy are
-   system-installed; only fastapi/uvicorn live in the venv).
+   The test suite runs under the same venv python (fastapi/uvicorn/pytest
+   live there): `.venv/bin/python -m pytest tests/ -q`.
 
 ## 2. Scope intake (per platform — templates in `docs/scope_templates/`)
 
@@ -159,6 +165,17 @@ Intigriti's beta Researcher API covers scope end-to-end via the script
   `_mobile_apps_manual_only` for manual testing.
 - The export prints whether RoE text is present. The script does not
   enforce RoE — **you** do (read it before the live run).
+- The fetch also embeds the program's **structured RoE testing-requirements**
+  under the `_testing_requirements` meta key (`requestHeader`, `userAgent`,
+  `automatedTooling`, `intigritiMe`, `safeHarbour`) when the program
+  carries any. `init` merges that meta into `platform_profile.json` +
+  `headers.txt` automatically: a `requestHeader` of the form
+  `"Name: {Username}"` is parsed and `{Username}` substituted with your
+  `--researcher` value; a non-null `userAgent` overrides the platform
+  default UA. A program's attribution header therefore lands in
+  `headers.txt` with **no manual editing** — for any program (the key is
+  simply absent when the platform/program provides nothing, and the whole
+  step is a no-op on hand-copied scope files).
 - The script's only third-party dep is `requests` (already in the repo
   `.venv`; it is *not* a control-plane dep — run it with
   `.venv/bin/python`, not system python).
@@ -166,7 +183,7 @@ Intigriti's beta Researcher API covers scope end-to-end via the script
   rate-limited → wait) / 404 (beta drift) → do the §2a manual path with
   `--platform intigriti`.
 - **Full worked example** (Intigriti end-to-end, verified commands):
-  `docs/examples/datacamp_intigriti.md`.
+  `docs/examples/uzleuven_intigriti.md`.
 
 Rehearse first: dry-run the whole graph against a scratch workspace (zero
 packets, zero cost; a report must land in `ws/<program>/reports/` with a $0
@@ -194,19 +211,47 @@ the report, final severity in the platform UI). The `cvss` lib (the
 
 ## 3.0 One-command launch (S8.4) — and pausing for a logout
 
+The program handle is the **only required argument** (2026-10-21):
+
     cd Ult_harness
-    .venv/bin/python main.py hunt --platform intigriti --program <handle> \
-        --tools jsleak,cbb \
+    .venv/bin/python main.py hunt <handle>
+
+Steering overrides (all optional):
+
+    .venv/bin/python main.py hunt <handle> --tools jsleak \
         [--targets host1,host2] [--max-targets 3]
+    .venv/bin/python main.py hunt <handle> --tools none    # control plane only
+    .venv/bin/python main.py hunt <handle> --platform hackerone \
+        --scope-file copied.json                           # other platforms
+
+Bare `hunt <handle>` is fully automated by these defaults:
+
+- **platform** → `intigriti` — the only platform the harness can
+  auto-fetch scope from. Any other platform needs `--platform <p>` together
+  with a `--scope-file` (a hand-copied file does not state where it came
+  from, so `hunt` refuses to guess).
+- **tools** → the **enabled** registry tools (`jsleak,cbb` today), so a
+  fresh hunt produces traffic from the first boot instead of idling. An
+  explicit `--tools` list still wins; `--tools none` = control plane only.
+- **scope cache** → `scope_files/<handle>.json` is fetched on demand; a
+  cached fetch that predates the current fetch-script schema (no RoE
+  metadata) is **refreshed automatically** — hand-written scope files are
+  never touched.
 
 `hunt` runs §3's manual sequence **for you**, in one foreground process:
 preflight (one-line `✗` on failure) → scope (Intigriti auto-fetch via the
 Researcher API when no `--scope-file` is given; other platforms need
-`--scope-file`) → `init` → **dry-run ($0 gate — non-$0 stops the command)**
-→ boots `run` as a child (its boot order and ordered teardown are reused
-untouched) → spawns your `--tools` with the `HARNESS_*`/proxy env injected.
-Ctrl-C tears down in order (tools first, then the control plane) and saves
-`workspace/<p>/hunt_state.json`. `--tools` omitted = control plane only.
+`--scope-file`) → `init` (merges the program's RoE attribution header / UA
+override into `headers.txt` when the scope file carries them) →
+**dry-run ($0 gate — non-$0 stops the command)** → boots `run` as a child
+(its boot order and ordered teardown are reused untouched) → spawns the
+selected tools with the `HARNESS_*`/proxy env injected. After the tool plan,
+`hunt` prints the program's structured RoE facts (`[hunt] RoE : …` —
+attribution header, UA override, `automatedTooling` level, safe harbour)
+plus a ⚠ line when `automatedTooling` is at or below 1 while tools are
+launching. The RoE free text is **never** enforced by the harness — you read
+it. Ctrl-C tears down in order (tools first, then the control plane) and
+saves `workspace/<p>/hunt_state.json`.
 
 **The operator picks the tools per program scope** — that is the steering
 lever (cheatsheet §0: the control plane never scans). Registry
@@ -283,8 +328,8 @@ order if you need it.
 - Work the components — they egress through `:8080`; every request is
   scope-gated and logged to `workspace/<program>/logs/egress_proxy.jsonl`.
   (`hunt` launches the ones you select from the registry — §3.0; manually
-  started components need the `HARNESS_*` exports, §2.5 of the DataCamp
-  example.)
+  started components need the `HARNESS_*` exports, see
+  `docs/examples/uzleuven_intigriti.md` Step 5.)
 - Findings arrive at `POST /api/triage/callback` and walk
   RECEIVED → VALIDATING → CONFIRMED (or get noise-filtered / rejected).
 - Blind classes (SSRF / RCE / XXE) reach CONFIRMED **only** via an Interactsh
@@ -303,7 +348,7 @@ order if you need it.
 | A provider silently absent from routing | Placeholder key in `.env` (`sk-or-xxxx…`, empty, `ghp_REPLACE_ME`) | `core/config.py::_clean_key` normalizes placeholders to *unset*, so the provider drops off the chain quietly. Put in a real key or `HARNESS_DISABLE_<PROV>=1` deliberately; verify with `GET /api/v1/providers`. |
 | GitHub Models 401s in the chain | The GitHub Models inference service was **retired upstream 2026-07-30** | Not a bug — PAID_PREMIUM falls through to the OpenRouter paid stop. Optionally drop `GITHUB_TOKEN` from `.env` to stop the 401 noise. |
 | Memory lookups return nothing | mempalace's default URL is `:8000`, but its shipped HTTP surfaces are the daemon (ephemeral port) + MCP JSON-RPC — no confirmed `:8000` REST `/search` | Best-effort fail-open by design; the hunt never fails on this. If memory matters, run mempalace explicitly and point `HARNESS_MEMPALACE_URL` at a live surface (see OPERATIONS §5 known-gap 3). |
-| `pip install` refused on system python | PEP-668 externally-managed environment | Live mode: always `.venv/bin/python`. Tests: system python + `PYTHONPATH=.venv/lib/python3.13/site-packages`. |
+| `pip install` refused on system python | PEP-668 externally-managed environment | Always the repo venv: `.venv/bin/python` for live mode **and** the test suite (fastapi/uvicorn/pytest live there). |
 | War room "doesn't exist" on `:3333` | Legacy v2.x docs (T3MP3ST) are archived now | The war room is same-origin on **`:8001`** (S7). Open `http://127.0.0.1:8001/`. |
 | Dry-run shows non-zero budget | Regression — a dry-run makes no real LLM calls | Fail the hunt setup and report it. Dry-run budget must be $0. |
 | An old `ghp_` PAT in the shell env | Once printed in session logs; shell env overrides `.env` (dotenv `override=False`) | Rotate it at GitHub, then `unset GITHUB_TOKEN` / scrub the shell profile. |
@@ -316,6 +361,11 @@ order if you need it.
 | `resume` refuses: "a control plane is already up on :8001" | Hard logout (SIGKILL) killed `hunt` but the child `run` survived, still holding `:8001`/`:8080` | Do the printed teardown (`kill <saved pid>` or `pgrep -f 'main.py run --program <p>'`), then re-run the same `resume`. |
 | `[hunt] note : <tool>: skipped — …` during boot | That tool failed its own pre-check (missing binary/deps) — fail-open by design | The hunt runs without it. Fix the tool (e.g. `go build` for jsleak, deps for cbb) and re-`hunt`/`resume` when you want it in. |
 | After `resume`, a blind finding can't confirm | Pause deregistered the Interactsh session — callbacks fired mid-gap never correlate | Stated honestly in `hunt_state.json` (`volatilized_on_stop`). Re-register the payload and re-send if the blind test still matters. |
+| `oob: register HTTP 400 (… already exists …)` at boot | The public Interactsh keys sessions by User-Agent; a stale same-day session under the engine's OLD shared UA (`ult-harness/3.0`) rejected every new register, so OOB stayed unregistered (blind classes can't confirm) | Fixed 2026-10-21: unique per-instance UA + one retry with a rotated UA on exactly this error — a fresh `hunt` self-heals. Only a hunt booted before that fix can still show the warning: restart it (`hunt <handle>`). |
+| War room "active" but idle: `active_specialists: 0`, `tasks_total: 0`, egress log empty | You booted `main.py run` alone — control plane only **by design** (S0: the harness never scans), with no tools launched | Restart via `main.py hunt <handle>` (defaults launch the enabled tools) or launch a component through the `HARNESS_*` env block. |
+| `[hunt] scope : cached … predates the current fetch schema — re-fetching` | The cached `scope_files/<p>.json` was produced by an older fetch script (no RoE metadata) | Expected, one-time, self-heals — the fresh fetch (with the RoE meta `init` merges) is written back. |
+| `[hunt] ✗ --platform is required when --scope-file is passed` | A hand-copied scope file does not state which platform it came from — guessing would be a wrong default | Add `--platform <p>` (or drop `--scope-file` on Intigriti and let `hunt` fetch). |
+| `[hunt] RoE : …` advisory line at boot | Informational: the program's structured RoE testing-requirements (attribution header, UA override, `automatedTooling` level, safe harbour). The `⚠` variant fires when `automatedTooling` ≤ 1 while tools launch | Nothing to fix — but the RoE **free text** is never machine-checked; read it (a program that bans automated-scanner findings rejects them regardless of the scale). |
 
 ## 5. Running it to full potential (the levers)
 

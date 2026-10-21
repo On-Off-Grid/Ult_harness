@@ -168,3 +168,90 @@ def test_oob_callback_dataclass_shape():
                      raw={"host": "abc123.session.oast.me"})
     assert cb.type == "dns"
     assert cb.raw["host"].endswith("oast.me")
+
+
+# ── OOBEngine: stale-session recovery (public Interactsh keys sessions by
+#    User-Agent — a live session under the SAME UA makes the next register
+#    answer 400 "correlation-id provided already exists") ──────────────────
+
+def _mock_interactsh_stale(register: list):
+    """Interactsh stand-in that returns ONE canned register response per
+    register call (register[i] on the i+1-th POST /register), recording the
+    User-Agent of every call so UA rotation is observable. No network."""
+    calls: list = []
+    state = {"n": 0}
+
+    async def http(method, url, headers, payload, timeout=15):
+        calls.append((method, url, headers.get("User-Agent", "")))
+        if method == "POST" and url.endswith("/register"):
+            body = register[min(state["n"], len(register) - 1)]
+            state["n"] += 1
+            return body
+        if method == "DELETE" and url.endswith("/deregister"):
+            return 200, {}
+        return 404, {}
+
+    http.calls = calls            # type: ignore[attr-defined]
+    return http
+
+
+def test_oob_ua_is_unique_per_instance():
+    ok = (200, {"collaborator": "c", "collaborator_token": "t"})
+    a = OOBEngine(mode="public", base_domain="oast.me",
+                  http=_mock_interactsh_stale(register=[ok]))
+    b = OOBEngine(mode="public", base_domain="oast.me",
+                  http=_mock_interactsh_stale(register=[ok]))
+    assert a._ua != b._ua  # two hunts must never share a session key
+    assert a._ua.startswith("ult-harness/3.0/")
+    asyncio.run(a.init())
+    reg_calls = [c for c in a.http.calls if c[1].endswith("/register")]
+    assert reg_calls and reg_calls[0][2] == a._ua  # register carries the UA
+
+
+def test_oob_stale_session_rotates_ua_and_retries():
+    # First register (stale session under this UA) -> 400 "already exists";
+    # the engine rotates its UA once and the second register succeeds.
+    http = _mock_interactsh_stale(register=[
+        (400, {"error": "correlation-id provided already exists"}),
+        (200, {"collaborator": "collab2", "collaborator_token": "tok999"}),
+    ])
+    eng = OOBEngine(mode="public", base_domain="oast.me", http=http)
+    ua0 = eng._ua
+    asyncio.run(eng.init())
+    assert eng.initialized is True
+    assert eng.collision_token == "tok999"
+    regs = [c for c in http.calls if c[1].endswith("/register")]
+    assert len(regs) == 2
+    assert regs[0][2] == ua0            # attempt 1 under the original UA
+    assert regs[1][2] != ua0            # attempt 2 under the rotated UA
+    assert regs[1][2].startswith("ult-harness/3.0/")
+
+
+def test_oob_stale_session_twice_fails_open():
+    # Two stale 400s (e.g. a UA collision in a row) -> give up cleanly:
+    # unregistered, payloads still well-formed, nothing raised.
+    http = _mock_interactsh_stale(register=[
+        (400, {"error": "correlation-id provided already exists"}),
+        (400, {"error": "correlation-id provided already exists"}),
+    ])
+    eng = OOBEngine(mode="public", base_domain="oast.me", http=http)
+    asyncio.run(eng.init())
+    assert eng.initialized is False
+    assert eng.session_id is None
+    regs = [c for c in http.calls if c[1].endswith("/register")]
+    assert len(regs) == 2               # at most one retry — no hammering
+    assert eng.generate_payload().endswith(".oast.me/")  # fail-open payloads
+
+
+def test_oob_other_register_error_does_not_retry():
+    # A non-stale error (e.g. 403 rate limit) must NOT burn the retry:
+    # one register call, then fail-open.
+    http = _mock_interactsh_stale(register=[
+        (403, {"error": "rate limit exceeded"}),
+        (200, {"collaborator": "x", "collaborator_token": "y"}),
+    ])
+    eng = OOBEngine(mode="public", base_domain="oast.me", http=http)
+    asyncio.run(eng.init())
+    assert eng.initialized is False
+    regs = [c for c in http.calls if c[1].endswith("/register")]
+    assert len(regs) == 1
